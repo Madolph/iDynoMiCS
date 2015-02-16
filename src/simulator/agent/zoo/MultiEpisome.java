@@ -220,7 +220,7 @@ public class MultiEpisome extends InfoAgent {
 	/* _______________________________________________________________________ */
 
 	@Override
-	public void internalStep() {
+	public void internalStep(Simulator aSim) {
 		//sonia 6.10.09
 		// for now we will only have a fixed number of plasmid copies, hence there will be 
 		//no plasmid replication

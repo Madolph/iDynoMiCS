@@ -188,13 +188,13 @@ public class EpiBac extends BactEPS {
 	 * Method called by the STEP method (cf. the Agent class)
 	 */
 	@Override
-	public void internalStep() {
+	public void internalStep(Simulator aSim) {
 		// Check if some plasmid has a null copy number and remove it if
 		// necessary
 		checkMissingPlasmid();
 
 		// Compute mass growth over all compartments
-		grow();
+		grow(aSim);
 		updateSize();
 
 		// test if the EPS capsule has to be excreted

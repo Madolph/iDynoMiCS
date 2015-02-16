@@ -29,14 +29,14 @@ public class EpiBacEnv extends MultiEpiBac{
 	
 	
 @Override
-public void internalStep() {
+public void internalStep(Simulator aSim) {
 		
 		
 		// Check if some plasmid has a null copy number and remove it if necessary
 		checkMissingPlasmid();
 		
 		// Compute mass growth over all compartments
-		grow();
+		grow(aSim);
 		
 		//conjugate();
 	

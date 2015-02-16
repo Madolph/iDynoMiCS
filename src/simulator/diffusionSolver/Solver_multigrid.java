@@ -9,13 +9,15 @@
  */
 package simulator.diffusionSolver;
 
+import java.util.ArrayList;
 import idyno.SimTimer;
 import simulator.diffusionSolver.multigrid.MultigridSolute;
 import simulator.geometry.Domain;
 import simulator.geometry.boundaryConditions.AllBC;
+import simulator.reaction.Reaction;
 import simulator.Simulator;
 import simulator.SoluteGrid;
-
+import utils.LogFile;
 import utils.XMLParser;
 
 /**
@@ -27,7 +29,7 @@ import utils.XMLParser;
  */
 public class Solver_multigrid extends DiffusionSolver {
 
-	protected MultigridSolute _bLayer;
+	protected MultigridSolute 	_bLayer;
 	
 	protected MultigridSolute	_diffusivity;
 	protected MultigridSolute[] _solute;
@@ -59,10 +61,75 @@ public class Solver_multigrid extends DiffusionSolver {
 	
 	protected int				nPosSteps;
 	protected Domain            _domain;
+	
+	public double 				timeStep;		
 
+	/**
+	 * used by the timeDependent Solver to create his steadyState Solver
+	 */
+	public void initCoupled(Simulator aSim, Domain domain, ArrayList <Integer> cutSolutes, ArrayList <Reaction> reactionList)
+	{
+		System.out.println("Made Solver_multigrid!");
+
+		mySim = aSim;
+		_soluteList = aSim.soluteList;
+		_reactions = reactionList;
+		
+		nCoarseStep = 1500;
+		vCycles = 5;
+		nPreSteps = 150;
+		nPosSteps = 150;
+		
+		LogFile.writeLogAlways("set values");
+
+		// Create the table of solute grids
+		nSolute = _soluteList.length;
+		
+		LogFile.writeLogAlways("creating solutes");
+		
+		_solute = new MultigridSolute[nSolute];
+		allSolute = new SoluteGrid[nSolute];
+		allReac = new SoluteGrid[nSolute];
+		allDiffReac = new SoluteGrid[nSolute];
+		
+		LogFile.writeLogAlways("solutes created");
+		_domain = domain;
+		_bLayer = new MultigridSolute(_soluteList[0], "boundary layer");
+		_diffusivity = new MultigridSolute(_soluteList[0], "relative diffusivity");
+		_soluteIndex=cutSolutes;
+
+		LogFile.writeLogAlways("domain created");
+		for (int i = 0; i<nSolute; i++) 
+		{
+			//if (_soluteIndex.contains(i)) 
+			//{
+			LogFile.writeLogAlways("trying i "+i+"( index "+_soluteList[i].soluteIndex+")");
+				double sBulk = mySim.world.getMaxBulkValue(_soluteList[i].soluteIndex);
+				_solute[i] = new MultigridSolute(_soluteList[i], _diffusivity, _bLayer, sBulk);
+				LogFile.writeLogAlways("i "+i+"( index "+_soluteList[i].soluteIndex+") done");
+			//} 
+			//else 
+				//_solute[i] = null;
+		}
+		LogFile.writeLogAlways("solutes set");
+		// From this moment, nSolute is the number of solutes SOLVED by THIS solver
+		nSolute = _soluteIndex.size();
+		nReaction = _reactions.size();
+		maxOrder = _solute[_soluteIndex.get(0)]._conc.length;
+
+		// Initialize array of reactive biomasses
+		_biomass = new MultigridSolute[nReaction];
+		for (int i = 0; i<nReaction; i++) {
+			_biomass[i] = new MultigridSolute(_soluteList[0], _reactions.get(i).reactionName);
+			_biomass[i].resetMultigridCopies(0d);
+		}
+	}
+	
 	@Override
-	public void init(Simulator aSimulator, XMLParser xmlRoot) {
-		super.init(aSimulator, xmlRoot);
+	public void init(Simulator aSimulator, XMLParser xmlRoot, Double agentTimeStep) 
+	{
+		super.init(aSimulator, xmlRoot, agentTimeStep);
+		System.out.println("Made Solver_multigrid!");
 
 		nCoarseStep = xmlRoot.getParamInt("coarseStep");
 		vCycles = xmlRoot.getParamInt("nCycles");
@@ -100,7 +167,7 @@ public class Solver_multigrid extends DiffusionSolver {
 			_biomass[i] = new MultigridSolute(_soluteList[0], _reactions.get(i).reactionName);
 			_biomass[i].resetMultigridCopies(0d);
 		}
-	}
+	} 
 
 	@Override
 	public void initializeConcentrationFields() {
@@ -108,16 +175,15 @@ public class Solver_multigrid extends DiffusionSolver {
 		_domain.refreshBioFilmGrids();
 
 		_bLayer.setFinest(_domain.getBoundaryLayer());
-		_bLayer.restrictToCoarsest();
+		_bLayer.restrictToCoarsest("bLayer");
 		_diffusivity.setFinest(_domain.getDiffusivity());
-		_diffusivity.restrictToCoarsest();
+		_diffusivity.restrictToCoarsest("relDiff");
 
 		// Prepare a soluteGrid with catalyst CONCENTRATION
-		for (int i = 0; i<_biomass.length; i++) {
-			_biomass[i].resetFinest(0d);
+		for (int i = 0; i<_biomass.length; i++) 
+			{ _biomass[i].resetFinest(0d);
 			_reactions.get(i).fitAgentMassOnGrid(_biomass[i].getFinest());
-			_biomass[i].restrictToCoarsest();
-		}
+			_biomass[i].restrictToCoarsest("bLayer"); }
 
 		for (int iSolute : _soluteIndex)
 			_solute[iSolute].readBulk();
@@ -153,7 +219,7 @@ public class Solver_multigrid extends DiffusionSolver {
 			_solute[iSolute].applyComputation();
 
 	}
-
+	
 	/**
 	 * One step of the solver
 	 */
@@ -161,21 +227,23 @@ public class Solver_multigrid extends DiffusionSolver {
 
 		for (int iSolute : _soluteIndex)
 			_solute[iSolute].resetMultigridCopies();
-
-		// solve chemical concentrations on coarsest grid
+		
 		solveCoarsest();
-
+		LogFile.writeLogAlways("_________Solving Diffusion on coarsest Grid_________");
+		
 		// nested iteration loop
-		for (int outer = 1; outer<maxOrder; outer++) {
-
+		for (int outer = 1; outer<maxOrder; outer++) 
+		{
 			order = outer;
 			for (int i = 0; i<nSolute; i++)
 				_solute[_soluteIndex.get(i)].initLoop(order);
 
 			// V-cycle loop
-			for (int v = 0; v<vCycles; v++) {
+			for (int v = 0; v<vCycles; v++) 
+			{
 				// downward stroke of V
-				while (order>0) {
+				while (order>0) 
+				{
 					// pre-smoothing
 					relax(nPreSteps);
 					for (int j = 0; j<nSolute; j++)
@@ -190,10 +258,12 @@ public class Solver_multigrid extends DiffusionSolver {
 				}
 
 				// bottom of V
-				solveCoarsest();
+				solveCoarsest(); 
+				//overwrites the restricted conc-grid of downward1 in first loop, but that's no concern
 
 				// upward stroke of V
-				while (order<outer) {
+				while (order<outer) 
+				{
 					order++;
 					for (int iSolute : _soluteIndex)
 						_solute[iSolute].upward(order);
@@ -208,16 +278,88 @@ public class Solver_multigrid extends DiffusionSolver {
 				// break the V-cycles if remaining error is dominated
 				// by local truncation error (see p. 884 of Numerical Recipes)
 				boolean breakVCycle = true;
-
 				updateReacRateAndDiffRate(order);
 				for (int iSolute : _soluteIndex)
 					breakVCycle &= _solute[iSolute].breakVCycle(order, v);
 
-				if (breakVCycle) break;
+				if (breakVCycle) 
+					break;
 			}
 		}
 	}
 
+	/**
+	 * This method is used to call the steady-state-solver, when it is coupled into the time-dependent
+	 * solver. 
+	 */
+	public void stepSolveDiffusionReactionPlugIn() 
+	{
+		for (int iSolute : _soluteIndex)
+			_solute[iSolute].resetMultigridCopies();
+
+		// solve chemical concentrations on coarsest grid
+		solveCoarsest();
+		
+		for (int iSolute=0;iSolute<nSolute;iSolute++) // all time-dep-solutes are initially restricted for reac-rates
+			if (!_soluteIndex.contains(iSolute))
+				_solute[iSolute].restrictToCoarsest("conc");
+		
+		// nested iteration loop
+		for (int outer = 1; outer<maxOrder; outer++) 
+		{
+			order = outer;
+			for (int iSolute : _soluteIndex)
+				_solute[iSolute].initLoop(order);
+
+			// V-cycle loop
+			for (int v = 0; v<vCycles; v++) 
+			{
+				// downward stroke of V
+				while (order>0) 
+				{
+					// pre-smoothing
+					relax(nPreSteps);
+					for (int iSolute : _soluteIndex)
+						_solute[iSolute].downward1(order, outer);
+
+					updateReacRateAndDiffRate(order-1);
+					for (int iSolute : _soluteIndex)
+						_solute[iSolute].downward2(order, outer);
+
+					// reduce grid value _g for good
+					order--;
+				}
+
+				// bottom of V
+				solveCoarsest(); 
+				//overwrites the restricted conc-grid of downward1 to provide a grid for error-analysis
+
+				// upward stroke of V
+				while (order<outer) 
+				{
+					order++;
+					for (int iSolute : _soluteIndex)
+						_solute[iSolute].upward(order);
+					for (int iSolute : _soluteIndex)
+						_solute[iSolute].truncateConcToZero(order);
+
+					// post-smoothing
+					relax(nPosSteps);
+				}
+
+				// break the V-cycles if remaining error is dominated
+				// by local truncation error (see p. 884 of Numerical Recipes)
+				boolean breakVCycle = true;
+				updateReacRateAndDiffRate(order);
+				for (int iSolute : _soluteIndex)
+					breakVCycle &= _solute[iSolute].breakVCycle(order, v);
+
+				if (breakVCycle)
+					break;
+			}
+		}
+	}
+	
 	/**
 	 * \brief Update concentration in the reactor
 	 * 
@@ -230,9 +372,12 @@ public class Solver_multigrid extends DiffusionSolver {
 		updateReacRateAndDiffRate(maxOrder-1);
 
 		// Find the connected bulks and agars and update their concentration
-		for (AllBC aBC : myDomain.getAllBoundaries()) {
-			if (aBC.hasBulk()) aBC.updateBulk(allSolute, allReac, internTimeStep);
-			if (aBC.hasAgar()) aBC.updateAgar(allSolute, allReac, internTimeStep);
+		for (AllBC aBC : myDomain.getAllBoundaries()) 
+		{ 
+			if (aBC.hasBulk()) 
+				aBC.updateBulk(allSolute, allReac, internTimeStep);
+			if (aBC.hasAgar()) 
+				aBC.updateAgar(allSolute, allReac, internTimeStep); 
 		}
 
 		// Refresh the bulk concentration of the multigrids
@@ -244,15 +389,17 @@ public class Solver_multigrid extends DiffusionSolver {
 	 * Solve the coarsest grid by relaxation Coarse grid is initialised to bulk
 	 * concentration
 	 */
-	public void solveCoarsest() {
+	public void solveCoarsest() 
+	{
 		order = 0;
 
 		// reset coarsest grid to bulk concentration
 		for (int iSolute : _soluteIndex)
 			_solute[iSolute].setSoluteGridToBulk(order);
-
+		//LogFile.writeLogAlways(MatrixOperations.soluteGridToString(_solute[iSolute]._conc));
 		// relax NSOLVE times
 		relax(nCoarseStep);
+		
 	}
 
 	/**
@@ -260,11 +407,13 @@ public class Solver_multigrid extends DiffusionSolver {
 	 * @param nIter
 	 */
 	public void relax(int nIter) {
-		for (int j = 0; j<nIter; j++) {
+		for (int j = 0; j<nIter; j++) 
+		{ 
 			updateReacRateAndDiffRate(order);
 			for (int iSolute : _soluteIndex)
-				_solute[iSolute].relax(order);
+				_solute[iSolute].relax(order, _bLayer); 
 		}
+		
 	}
 
 	/**
@@ -272,9 +421,14 @@ public class Solver_multigrid extends DiffusionSolver {
 	 * concentration
 	 * @param resOrder
 	 */
-	public void updateReacRateAndDiffRate(int resOrder) {
+	public void updateReacRateAndDiffRate(int resOrder) 
+	{
 		// Reset rates and derivative rates grids
-		for (int iSolute : _soluteIndex) {
+		// has to handle all solutes (not just own index)
+		for (int iSolute=0;iSolute<nSolute;iSolute++) 
+		{
+			if (_solute[iSolute]._conc[resOrder] == null)
+				continue;
 			_solute[iSolute].resetReaction(resOrder);
 			allSolute[iSolute] = _solute[iSolute]._conc[resOrder];
 			allReac[iSolute] = _solute[iSolute]._reac[resOrder];
@@ -283,8 +437,10 @@ public class Solver_multigrid extends DiffusionSolver {
 
 		// Calls the agents of the guild and sums their uptake-rate
 		for (int iReac = 0; iReac<_reactions.size(); iReac++)
-			_reactions.get(iReac).applyReaction(allSolute, allReac, allDiffReac,
+			{
+				_reactions.get(iReac).applyReaction(allSolute, allReac, allDiffReac,
 			        _biomass[iReac]._conc[resOrder]);
+			}
 	}
 
 }

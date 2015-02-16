@@ -625,5 +625,5 @@ public final class ExtraMath
 		} while (!sameSign(result, mu));
 		
 		return result;
-	}                           
+	}
 }

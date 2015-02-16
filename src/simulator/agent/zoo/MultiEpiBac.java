@@ -219,14 +219,14 @@ public class MultiEpiBac extends BactEPS {
 	 * Method called by the STEP method (cf. the Agent class)
 	 */
 	@Override
-	public void internalStep() {
+	public void internalStep(Simulator aSim) {
 
 		// Check if some plasmid has a null copy number and remove it if
 		// necessary
 		checkMissingPlasmid();
 
 		// Compute mass growth over all compartments
-		grow();
+		grow(aSim);
 
 
 		//sonia 11.10.2010 the hgt will be carried out in a separate function
@@ -266,7 +266,7 @@ public class MultiEpiBac extends BactEPS {
 
 
 	@Override
-	public void grow() {
+	public void grow(Simulator aSim) {
 		double deltaMass;
 		int reacIndex;
 		_netGrowthRate = 0;

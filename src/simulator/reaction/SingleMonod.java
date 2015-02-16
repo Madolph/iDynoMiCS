@@ -180,11 +180,12 @@ public class SingleMonod extends Reaction {
 		//sonia:chemostat 27.11.09
 		if(Simulator.isChemostat){
 			
-			for (int i = 0; i<_mySoluteIndex.length; i++) {
+			for (int i = 0; i<_mySoluteIndex.length; i++) 
+			{
 				iSolute = _mySoluteIndex[i];
 				_uptakeRate[iSolute] = (tdel* mass*Dil) + (mass *_specRate*_soluteYield[iSolute] ) ;
 				_diffUptakeRate[iSolute] = 0;
-		}
+			}
 	
 			_diffUptakeRate[localIndex] = (tdel*mass*Dil) + mass*_soluteYield[localIndex]*_soluteYield[0]
 			                             *kineticDiff(s1, _kineticParam, 1);

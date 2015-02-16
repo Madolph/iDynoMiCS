@@ -13,9 +13,11 @@ import java.util.Arrays;
 
 import simulator.geometry.ContinuousVector;
 import simulator.geometry.DiscreteVector;
+import simulator.geometry.Domain;
+import simulator.agent.ActiveAgent;
 import simulator.agent.LocatedAgent;
-
 import utils.ExtraMath;
+import utils.LogFile;
 import utils.MatrixOperations;
 import utils.ResultFile;
 
@@ -36,6 +38,17 @@ public class SpatialGrid implements Serializable {
 	 */
 	private static final long serialVersionUID = 1L;
 
+	/** 
+	 * all these variables are implemented for subclasses
+	 */
+	public int                  soluteIndex;
+	
+	public double              diffusivity;
+	
+	public double 			   initialConc;
+		
+	private Domain _domain;
+	
 	/**
 	 * Name assigned to this spacial grid. Taken from an XML tag in the protocol file
 	 */
@@ -54,22 +67,22 @@ public class SpatialGrid implements Serializable {
 	/**
 	 * Number of grid voxels in I direction
 	 */
-	protected int             _nI;
+	public int             _nI;
 	
 	/**
 	 * Number of grid voxels in J direction
 	 */
-	protected int 			  _nJ;
+	public int 			  _nJ;
 	
 	/**
 	 * Number of grid voxels in K direction
 	 */
-	protected int			  _nK;
+	public int			  _nK;
 
 	/**
 	 * Grid resolution = side length of a voxel
 	 */
-	protected double          _reso;
+	public double          _reso;
 
 	/**
 	 * Boolean noting whether this grid is 3D (true) or 2D (false)
@@ -110,6 +123,7 @@ public class SpatialGrid implements Serializable {
 		}
 		_reso = resolution;
 		// Create a padded grid
+		
 		initGrids();
 
 	}
@@ -127,13 +141,14 @@ public class SpatialGrid implements Serializable {
 		//sonia:chemostat
 		// Rob 17/8/2011: this doesn't seem to be called by anything
 
-		if(Simulator.isChemostat){
-			_nI = 1;
-			_nJ = 1;
-		}else{    // 2D biofilm
-			_nI = nI;
-			_nJ = nJ;
-		}
+		if(Simulator.isChemostat)
+			{ _nI = 1;
+			_nJ = 1; }
+		else
+			// 2D biofilm
+			{ _nI = nI;
+			_nJ = nJ; }
+		
 		_nK = 1;
 		_reso = resolution;
 		_is3D = false;
@@ -150,27 +165,21 @@ public class SpatialGrid implements Serializable {
 	 */
 	protected void initGrids() 
 	{
-		if(Simulator.isChemostat)
-		{
+		if(Simulator.isChemostat)		
 			//sonia:chemostat
-			//set the size of the grid to be 1,1,1 and not a padded grid
-			
-			_is3D = false;
-			grid = new double [1][1][1];
-
-		}
-		else
-		{
+			//set the size of the grid to be 1,1,1 and not a padded grid		
+			{ _is3D = false;
+			grid = new double [1][1][1]; }		
+		else		
 			// Obviously if we create only one cell in the Z dimension, the grid is 2D
+			{
 			_is3D = _nK > 1;
-
 			grid = new double[_nI+2][_nJ+2][_nK+2];
-		}
+			}
 	
 		// KA 28/3/13 - this was turned off when I started recommenting iDynoMiCS - no reason given here but may need checking
 		// At the creation the table is automatically filled by 0
 		//setAllValueAt(0);
-
 	}
 
 	/**
@@ -389,7 +398,7 @@ public class SpatialGrid implements Serializable {
 	 * @param dV	DiscreteVector containing the position of a grid location
 	 * @return 1st spatial derivative according X
 	 */
-	public double diffX(DiscreteVector dV) {
+	public double diffX(DiscreteVector dV) {	
 		double dx = (grid[dV.i+1][dV.j][dV.k] - grid[dV.i-1][dV.j][dV.k]) / (2*_reso);
 		return (Double.isNaN(dx) || Double.isInfinite(dx)) ? 0 : dx;
 	}
@@ -453,7 +462,6 @@ public class SpatialGrid implements Serializable {
 		return (Double.isNaN(dy) || Double.isInfinite(dy)) ? 0 : dy;
 	}
 	
-
 	/**
 	 * \brief For a given location, calculate the 2nd spatial derivative according to Z
 	 * 
@@ -496,6 +504,7 @@ public class SpatialGrid implements Serializable {
 		double dz =  (grid[dV.i][dV.j][dV.k+1] - grid[dV.i][dV.j][dV.k-1]) / (2*_reso);
 		return (Double.isNaN(dz) || Double.isInfinite(dz)) ? 0 : dz;
 	}
+	
 	/**
 	 * \brief Computes the average concentration seen in a sphere (or cube) centered around a given point
 	 * 
@@ -507,13 +516,13 @@ public class SpatialGrid implements Serializable {
 	 */
 	public double getValueAround(ContinuousVector cC, double extReso) {
 
-		if (extReso<=_reso) {
+		if (extReso<=_reso) 
 			// The asked value is
 			return getValueAt(cC);
-		} else {
+		 else
 			// TODO
 			return getValueAt(cC);
-		}
+		
 	}
 
 
@@ -527,8 +536,16 @@ public class SpatialGrid implements Serializable {
 	 * @param aLocAgent	The agent to use as the centre of the search
 	 * @return	Average grid value seen around this point
 	 */
-	public double getValueAround(LocatedAgent aLocAgent) {
-		return getValueAround(aLocAgent.getLocation(), aLocAgent.getRadius(true));
+	public double getValueAround(ActiveAgent anAgent) 
+	{
+		if (anAgent instanceof LocatedAgent) 
+		{
+			return getValueAround(((LocatedAgent) anAgent).getLocation(), ((LocatedAgent) anAgent).getRadius(true));
+		} 
+		else 
+		{
+			return getAverage();
+		}
 	}
 
 
@@ -544,22 +561,16 @@ public class SpatialGrid implements Serializable {
 		DiscreteVector dc = getDiscreteCoordinates(cC);
 		//sonia:chemostat
 
-		if(Simulator.isChemostat){
-			if (isValid(dc)) {
-				return grid[dc.i][dc.j][dc.k];
-			} else {
-				return Double.NaN;
-			}
-		}else{
-
-			if (isValid(dc)) 
-			{
-				return grid[dc.i+1][dc.j+1][dc.k+1];
-				
-			} else {
-				return Double.NaN;
-			}
-		}
+		if(Simulator.isChemostat)
+			{ if (isValid(dc)) 
+				return grid[dc.i][dc.j][dc.k];			 
+			else 
+				return Double.NaN; }
+		else
+			{ if (isValid(dc)) 			
+				return grid[dc.i+1][dc.j+1][dc.k+1];							 
+			else 			
+				return Double.NaN; }
 	}
 
 	/**
@@ -630,13 +641,11 @@ public class SpatialGrid implements Serializable {
 	 * @param k K Coordinate of the grid location to set
 	 * @return The double value at that location
 	 */
-	public double getValueAt(int i, int j, int k) 
-	{
-		
-			if (isValidorPadded(i, j, k)) return grid[i][j][k];
-			else return Double.NaN;
-		
-		
+	public double getValueAt(int i, int j, int k) {
+			if (isValidorPadded(i, j, k)) 
+				return grid[i][j][k];
+			else 
+				return Double.NaN;		
 	}
 
 	/**
@@ -681,8 +690,7 @@ public class SpatialGrid implements Serializable {
 	 * @param j	J Coordinate of the grid location to set
 	 * @param k K Coordinate of the grid location to set
 	 */
-	public void setValueAt(double value, int i, int j, int k) 
-	{
+	public void setValueAt(double value, int i, int j, int k) {
 		grid[i][j][k] = value;
 	}
 
@@ -773,15 +781,13 @@ public class SpatialGrid implements Serializable {
 		//sonia:chemostat 
 		//in this case we have no padding
 
-		if(Simulator.isChemostat){
-			Arrays.fill(grid[0][0],value);
-
-		}else{
-			for (int i = 0; i<_nI+2; i++) {
-				for (int j = 0; j<_nJ+2; j++) {
+		if(Simulator.isChemostat)
+			{ Arrays.fill(grid[0][0],value); }
+		else
+		{
+			for (int i = 0; i<_nI+2; i++)
+				for (int j = 0; j<_nJ+2; j++) 
 					Arrays.fill(grid[i][j], value);
-				}
-			}
 		}
 	}
 

@@ -11,7 +11,6 @@ import simulator.diffusionSolver.multigrid.SinglegridPressure;
 import simulator.geometry.IsComputationDomain;
 import simulator.Simulator;
 import simulator.SoluteGrid;
-
 import utils.XMLParser;
 
 /**
@@ -65,8 +64,8 @@ public class Solver_pressure extends DiffusionSolver
 	 * @param xmlRoot	XML tags containing relevant parameters for intialising this object
 	 */
 	@Override
-	public void init(Simulator aSimulator, XMLParser xmlRoot) {
-		super.init(aSimulator, xmlRoot);
+	public void init(Simulator aSimulator, XMLParser xmlRoot, Double agentTimeStep) {
+		super.init(aSimulator, xmlRoot, agentTimeStep);
 
 		// Create the table of solute grids
 		mySim = aSimulator;

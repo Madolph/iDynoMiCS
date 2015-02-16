@@ -14,6 +14,7 @@ import simulator.geometry.boundaryConditions.AllBC;
 import simulator.Simulator;
 import simulator.SoluteGrid;
 import utils.ExtraMath;
+import utils.LogFile;
 import utils.MatrixOperations;
 
 /**
@@ -36,10 +37,9 @@ public class MultigridSolute
 	 */
 	public SoluteGrid                 realGrid;
 	
-	
 	protected double                  _referenceSystemSide;
 	
-	protected double                  _diffusivity;
+	public double                  _diffusivity;
 	
 	/**
 	 * The computational domain that this solute grid is associated with
@@ -56,7 +56,10 @@ public class MultigridSolute
 	 */
 	protected double					sBulk;
 
-	protected SoluteGrid[]            _relDiff;
+	/**
+	 * relative diffusivity
+	 */
+	public SoluteGrid[]            _relDiff;
 	
 	protected SoluteGrid[]			   _bLayer;
 	
@@ -73,7 +76,7 @@ public class MultigridSolute
 	
 	protected SoluteGrid[]			 _itau;
 
-	public double                     truncationError;
+	public Double                     truncationError;
 
 	private static final double[][][] _diff    = new double[3][3][3];
 
@@ -155,7 +158,7 @@ public class MultigridSolute
 			_itau[maxOrder-iGrid-1] = new SoluteGrid(_i, _j, _k, r, aSolute);
 		}
 	}
-
+	
 	/**
 	 * \brief Constructor used for biomass, bLayer and relative diffusivity grids
 	 * 
@@ -175,27 +178,25 @@ public class MultigridSolute
 		_nK = aSolute.getGridSizeK();
 		
 		//sonia:chemostat
-		if(Simulator.isChemostat){
-			_conc = new SoluteGrid[1];
-			_conc[0]= new SoluteGrid(_nI, _nJ, _nK, _domain._resolution, aSolute);
-			
-		}else{
-		
-		setReferenceSide();
-		_conc = new SoluteGrid[maxOrder];
+		if(Simulator.isChemostat)
+			{ _conc = new SoluteGrid[1];
+			_conc[0]= new SoluteGrid(_nI, _nJ, _nK, _domain._resolution, aSolute); }
+		else
+		{
+			setReferenceSide();
+			_conc = new SoluteGrid[maxOrder];
 
-		for (int iGrid = 0; iGrid<maxOrder; iGrid++) {
-			int i = (_nI-1)/ExtraMath.exp2(iGrid)+1;
-			int j = (_nJ-1)/ExtraMath.exp2(iGrid)+1;
-			int k = (_nK-1)/ExtraMath.exp2(iGrid)+1;
-			double r = _referenceSystemSide/referenceIndex(i,j,k);
+			for (int iGrid = 0; iGrid<maxOrder; iGrid++) 
+				{ int i = (_nI-1)/ExtraMath.exp2(iGrid)+1;
+				int j = (_nJ-1)/ExtraMath.exp2(iGrid)+1;
+				int k = (_nK-1)/ExtraMath.exp2(iGrid)+1;
+				double r = _referenceSystemSide/referenceIndex(i,j,k);
 
-			// with padding for boundary conditions
-			_conc[maxOrder-iGrid-1] = new SoluteGrid(i, j, k, r, aSolute);
-		}
+				// with padding for boundary conditions
+				_conc[maxOrder-iGrid-1] = new SoluteGrid(i, j, k, r, aSolute); }
 		}
 	}
-
+	
 	/**
 	 * \brief Beginning of each nested loop
 	 * 
@@ -208,35 +209,47 @@ public class MultigridSolute
 		// set each chemical's r.h.s. to 0
 		_rhs[order].setAllValueAt(0d);
 	}
-
+	/**
+	 * TODO unused
+	 * @param order
+	 * @param outer
+	 */
 	public void downward(int order, int outer) {
-		MultigridUtils.restrictBoundaryLayer(_conc[order], _conc[order-1], _bLayer[order-1].grid);
+		MultigridUtils.restrictBoundaryLayer4c(_conc[order], _conc[order-1], _bLayer[order-1].grid);
 		//
 		computeResidual(_itemp, order);
 		//
-		MultigridUtils.restrictBoundaryLayer(_itemp[order], _itemp[order-1], _bLayer[order-1].grid);
+		MultigridUtils.restrictBoundaryLayer4c(_itemp[order], _itemp[order-1], _bLayer[order-1].grid);
 		// reduce grid value _g temporarily
 		order--;
 		computeResidual(_itau, order);
 		MultigridUtils.subtractTo(_itau[order].grid, _itemp[order].grid);
 
 		// sum tau to rhs of _g - 1
-		MultigridUtils.restrictBoundaryLayer(_rhs[order+1], _rhs[order], _bLayer[order].grid);
+		MultigridUtils.restrictBoundaryLayer4c(_rhs[order+1], _rhs[order], _bLayer[order].grid);
 		MultigridUtils.addTo(_rhs[order].grid, _itau[order].grid);
 
 		// compute the truncation error for this V-cycle
 		// for all chemicals
-		if (order+1==outer) truncationError = .3333*MultigridUtils.computeNorm(_itau[order].grid);
+		if (order+1==outer) truncationError = MultigridUtils.computeNorm(_itau[order].grid)/3;
 	}
 
 	public void downward1(int order, int outer) {
-		MultigridUtils.restrictBoundaryLayer(_conc[order], _conc[order-1], _bLayer[order-1].grid);
+		
+		MultigridUtils.restrictBoundaryLayer4c(_conc[order], _conc[order-1], _bLayer[order-1].grid);
 		//
 		computeResidual(_itemp, order);
 		//
-		MultigridUtils.restrictBoundaryLayer(_itemp[order], _itemp[order-1], _bLayer[order-1].grid);
+		MultigridUtils.restrictBoundaryLayer4c(_itemp[order], _itemp[order-1], _bLayer[order-1].grid);
 	}
 
+	/**
+	 * 
+	 * 
+	 * @param order run-counter
+	 * @param outer is compared to current order -> results in computing the error, if its the first vCycle
+	 * 				of each solute
+	 */
 	public void downward2(int order, int outer) {
 		// reduce grid value _g temporarily
 		order--;
@@ -244,21 +257,22 @@ public class MultigridSolute
 		MultigridUtils.subtractTo(_itau[order].grid, _itemp[order].grid);
 
 		// sum tau to rhs of _g - 1
-		MultigridUtils.restrictBoundaryLayer(_rhs[order+1], _rhs[order], _bLayer[order].grid);
+		MultigridUtils.restrictBoundaryLayer4c(_rhs[order+1], _rhs[order], _bLayer[order].grid);
 
 		MultigridUtils.addTo(_rhs[order].grid, _itau[order].grid);
 
 		// compute the truncation error for this V-cycle
 		// for all chemicals
-		if (order+1==outer) truncationError = .3333*MultigridUtils.computeNorm(_itau[order].grid);
+		if (order+1==outer) truncationError = MultigridUtils.computeNorm(_itau[order].grid)/3;
 
 	}
 
 	public void upward(int order) {
-		MultigridUtils.restrictBoundaryLayer(_conc[order], _itemp[order-1], _bLayer[order-1].grid);
-		MultigridUtils.subtractTo(_conc[order-1].grid, _itemp[order-1].grid);
+		MultigridUtils.restrictBoundaryLayer4c(_conc[order], _itemp[order-1], _bLayer[order-1].grid);
+		MultigridUtils.subtractTo(_conc[order-1].grid, _itemp[order-1].grid); // stores a delta-conc in conc[oder-1]
 		MultigridUtils.interpolateBoundaryLayer(_itau[order], _conc[order-1], _bLayer[order].grid);
-		MultigridUtils.addTo(_conc[order].grid, _itau[order].grid);
+		MultigridUtils.addTo(_conc[order].grid, _itau[order].grid); 
+		// the interpolated delta-conc (estemated error) is added to conc -> corrects it
 	}
 
 	public boolean breakVCycle(int order, int v) {
@@ -266,31 +280,30 @@ public class MultigridSolute
 		computeResidual(_itemp, order);
 		MultigridUtils.subtractTo(_itemp[order].grid, _rhs[order].grid);
 
-		float res = MultigridUtils.computeNorm(_itemp[order].grid);
+		Double res = MultigridUtils.computeNorm(_itemp[order].grid);
 		// confirm that criterium is met for each solute
-		if (v>0&order==maxOrder-1) {
-			//System.out.println("grid "+order+"; v "+v+"; "+soluteName+" res "+res+"; truncerr "
-			 //       +truncationError);
-		}
+		//if (v>0&order==maxOrder-1) {
+		LogFile.writeLog("grid "+order+"; v "+v+"; "+soluteName+" res "+res+"; truncerr "
+			        +truncationError);
+		//}
 
 		// confirm that criterium is met for each solute
-		if (res>truncationError) { return false; }
-		return true;
+		return res<=truncationError;
 	}
 
-	public double relax(int order) {
+	public double relax(int order, MultigridSolute _bLayer) {
 		int nI = _conc[order].getGridSizeI();
 		int nJ = _conc[order].getGridSizeJ();
 		int nK = _conc[order].getGridSizeK();
 
 		double h = _referenceSystemSide/referenceIndex(nI,nJ,nK);
-		double h2i = 0.5f/(h*h);
+		double h2i = 0.5/(h*h);
+		
 		// red-black relaxation
 		// iterate through system
 		// isw, jsw and ksw alternate between values 1 and 2
-
 		u = _conc[order].grid;
-		bl = _bLayer[order].grid;
+		bl = _bLayer._conc[order].grid;
 		rd = _relDiff[order].grid;
 
 		double lop, dlop, res;
@@ -304,14 +317,19 @@ public class MultigridSolute
 		// bvm 22.12.09: now allows red-black for 2d AND 3d
 		int ksw = 1;
 		int isw, jsw;
-		for (int pass = 1; pass<=2; pass++, ksw = 3-ksw) {
+		for (int pass = 1; pass<=2; pass++, ksw = 3-ksw) 
+		{
 			jsw = ksw;
-			for (_k = 1; _k<=nK; _k++, jsw = 3-jsw) {
+			for (_k = 1; _k<=nK; _k++, jsw = 3-jsw) 
+			{
 				isw = jsw;
-				for (_j = 1; _j<=nJ; _j++, isw = 3-isw) {
-					for (_i = isw; _i<=nI; _i += 2) {
+				for (_j = 1; _j<=nJ; _j++, isw = 3-isw) 
+				{
+					for (_i = isw; _i<=nI; _i += 2) 
+					{
 
-						if (bl[_i][_j][_k]>=BLTHRESH) {
+						if (bl[_i][_j][_k]>=BLTHRESH) 
+						{
 							// Case: Inside boundary layer
 							// Equations must be solved here
 
@@ -324,18 +342,17 @@ public class MultigridSolute
 
 							// compute derivative of L operator
 							dlop = computeDiffLop(order, h2i);
-
+							
 							// compute residual
 							res = (lop-_rhs[order].grid[_i][_j][_k])/dlop;
 							totalRes += Math.abs(res);
 							// update concentration (test for NaN)
 							//LogFile.writeLog("NaN generated in multigrid solver "+"while computing rate for "+soluteName);
 							//LogFile.writeLog("location: "+_i+", "+_j+", "+_k);
-							//LogFile.writeLog("dlop: "+dlop+"; lop: "+lop+"; grid: "+_rhs[order].grid[_i][_j][_k]);
 
 							u[_i][_j][_k] -= res;
 							// if negative concentrations, put 0 value
-							u[_i][_j][_k] = (u[_i][_j][_k]<0 ? 0 : u[_i][_j][_k]);
+							u[_i][_j][_k] = (u[_i][_j][_k]<0 ? 0.0 : u[_i][_j][_k]);
 						}
 					}
 				}
@@ -343,7 +360,7 @@ public class MultigridSolute
 
 			// refresh the padding elements to enforce
 			// boundary conditions for all solutes
-			_conc[order].refreshBoundary();
+			_conc[order].refreshBoundary("conc");
 		}
 		return totalRes;
 	}
@@ -358,20 +375,38 @@ public class MultigridSolute
 		_diff[1][1][1] = realGrid.diffusivity*rd[_i][_j][_k];
 	}
 
-	private double computeLop(int order, double h2i) {
-		
+	/**
+	 * h2i would normally just be 1/h². adding the 0.5 basically makes
+	 * (diff+diff)/2 * u-u. So, average Diffusivity between two points times
+	 * the gradient of concentration, which makes the L-Operator
+	 * the basic solver for the diffusion-reaction
+	 * 
+	 * @param order order this Method is used on (to pick right reac-Grid)
+	 * @param h2i 0.5/h² L-Operator
+	 * @return
+	 */
+	private double computeLop(int order, double h2i) 
+	{
 		return ( (_diff[2][1][1]+_diff[1][1][1])*(u[_i+1][_j][_k]-u[_i][_j][_k])
 		        +(_diff[0][1][1]+_diff[1][1][1])*(u[_i-1][_j][_k]-u[_i][_j][_k])
 		        +(_diff[1][2][1]+_diff[1][1][1])*(u[_i][_j+1][_k]-u[_i][_j][_k])
 		        +(_diff[1][0][1]+_diff[1][1][1])*(u[_i][_j-1][_k]-u[_i][_j][_k])
 		        +(_diff[1][1][2]+_diff[1][1][1])*(u[_i][_j][_k+1]-u[_i][_j][_k])
 		        +(_diff[1][1][0]+_diff[1][1][1])*(u[_i][_j][_k-1]-u[_i][_j][_k]))
-		        *h2i + _reac[order].grid[_i][_j][_k];
+		        *h2i +_reac[order].grid[_i][_j][_k];
 	}
 
-	private double computeDiffLop(int order, double h2i) {
-		return -h2i
-		        *(6.0f*_diff[1][1][1]
+	/**
+	 * the derivate of the L-Operator (derived by u)
+	 * reac/d(u) = diffReac
+	 * 
+	 * @param order current grid-order
+	 * @param h2i 
+	 * @return
+	 */
+	private double computeDiffLop(int order, double h2i) 
+	{
+		return -h2i*(6.0f*_diff[1][1][1]
 		              +_diff[2][1][1]+_diff[0][1][1]
 		              +_diff[1][2][1]+_diff[1][0][1]
 		              +_diff[1][1][2]+_diff[1][1][0])
@@ -417,7 +452,7 @@ public class MultigridSolute
 			}
 		}
 		
-		res[order].refreshBoundary();
+		res[order].refreshBoundary("conc");
 	}
 
 	public void truncateConcToZero(int order) {
@@ -428,13 +463,15 @@ public class MultigridSolute
 		double[][][] u = _conc[order].grid;
 
 		double v;
-		for (int _i = 1; _i<=nI; _i++) {
-			for (int _j = 1; _j<=nJ; _j++) {
-				for (int _k = 1; _k<=nK; _k++) {
-					if (bl[_i][_j][_k]>=BLTHRESH) {
-						v = u[_i][_j][_k];
-						u[_i][_j][_k] = (v<0 ? 0 : v);
-					}
+		for (int _i = 1; _i<=nI; _i++) 
+		{
+			for (int _j = 1; _j<=nJ; _j++) 
+			{
+				for (int _k = 1; _k<=nK; _k++) 
+				{
+					if (bl[_i][_j][_k]>=BLTHRESH) 
+						{ v = u[_i][_j][_k];
+						u[_i][_j][_k] = (v<0 ? 0 : v); }
 				}
 			}
 		}
@@ -472,9 +509,10 @@ public class MultigridSolute
 	}
 
 	/**
-	 * Set all grids elements to the value defined for Bulk. For elements
-	 * located in the convective part (i.e. outside the BLayer, we take the
-	 * value defined in the BulkBoundary Class)
+	 * Set the coarse grid either to bulk (if beyond our computational domain)
+	 * or to the last value (best guess for the new calculation)
+	 * This method is used on different grid-levels and the indices of
+	 * assignment had to be adjusted (it looks very confusing, but trust me, it makes sense... eventually)
 	 */
 	public void setSoluteGridToBulk(int order) {
 
@@ -482,21 +520,26 @@ public class MultigridSolute
 		int maxJ = _conc[order].getGridSizeJ();
 		int maxK = _conc[order].getGridSizeK();
 
-		for (_i = 1; _i<=maxI; _i++) {
-			for (_j = 1; _j<=maxJ; _j++) 
-			{
-				for (_k = 1; _k<=maxK; _k++) {
-					if (_bLayer[order].grid[_i][_j][_k]<=BLTHRESH) {
+		for (_i = 1; _i<=maxI; _i++) 
+			for (_j = 1; _j<=maxJ; _j++) 			
+				for (_k = 1; _k<=maxK; _k++) 
+				{
+					if (_bLayer[order].grid[_i][_j][_k]<=BLTHRESH)
+						{
 						// outside the boundary layer (will not be solved)
-						_conc[order].grid[_i][_j][_k] = sBulk;
-					} else {
-						// inside the biofilm (value is not really important
-						// now)
-						_conc[order].grid[_i][_j][_k] = sBulkMax;
-					}
+						_conc[order].grid[_i][_j][_k] = sBulk; 
+						} 
+					else 
+						{ 
+						_conc[order].setValueAt(realGrid.getValueAt
+								// changed indices to get right corresponding points to the coarse points
+								(((_i-1)*ExtraMath.exp2(maxOrder-order-1))+1, 
+										((_j-1)*ExtraMath.exp2(maxOrder-order-1))+1, 
+										((_k-1)*ExtraMath.exp2(maxOrder-order-1))+1), 
+										// the indices the values get assigned to
+										_i, _j, _k); 
+						}
 				}
-			}
-		}
 	}
 
 	public SoluteGrid getFinest() {
@@ -512,10 +555,19 @@ public class MultigridSolute
 		_conc[maxOrder-1] = aGrid;
 	}
 
-	public void restrictToCoarsest() {
-		for (int order = maxOrder-1; order>0; order--) {
-			_conc[order-1].setAllValueAt(0);
-			MultigridUtils.restrict(_conc[order], _conc[order-1]);
+	/**
+	 * restricts our grid to the coarsest order our solver uses
+	 * 
+	 * @param behaviour deternimes the behaviour of the boundaries and
+	 * should be: conc, for concentration-fields
+	 * relDiff, for grids of relative Diffusivity
+	 * and bLayer, for the boundary-Layer-Grid
+	 */
+	public void restrictToCoarsest(String behaviour) {
+		for (int order = maxOrder-1; order>0; order--) 
+		{
+			_conc[order-1].setAllValueAt(0.0);
+			MultigridUtils.restrict4c(_conc[order], _conc[order-1], behaviour);
 		}
 	}
 
@@ -553,6 +605,9 @@ public class MultigridSolute
 
 	public void applyComputation() {
 		MatrixOperations.copyValuesTo(realGrid.grid, _conc[maxOrder-1].grid);
+		
+		//for (int i=0;i<realGrid.grid.length;i++)
+			//LogFile.writeLogAlways("conc: "+realGrid.grid[i][1][1]);
 	}
 
 	public void readSoluteGrid() {

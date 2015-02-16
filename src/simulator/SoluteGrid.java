@@ -9,10 +9,9 @@
 package simulator;
 
 import utils.ExtraMath;
+import utils.LogFile;
 import utils.XMLParser;
-
 import utils.UnitConverter;
-
 import simulator.geometry.*;
 import simulator.geometry.boundaryConditions.AllBC;
 
@@ -45,6 +44,8 @@ public class SoluteGrid extends SpatialGrid
 	 * Diffusivity of this solute in water, if specified in the protocol file
 	 */
 	public double              diffusivity;
+	
+	public double 			   initialConc;
 	
 	/**
 	 * Computation domain this solute is associated with. Provides description of diffusion, carrier, and bulk domains for this solute
@@ -108,7 +109,9 @@ public class SoluteGrid extends SpatialGrid
 		// Set the initial concentration
 		double concentration = xmlRoot.getParamDbl("concentration");
 		// If no value specified, use the maximal concentration of the bulks
-		if (Double.isNaN(concentration)) concentration = ExtraMath.max(aSim.world.getAllBulkValue(soluteIndex));
+		if (Double.isNaN(concentration)) 
+			concentration = 0.0;
+			//concentration = ExtraMath.max(aSim.world.getAllBulkValue(soluteIndex));
 		// Set the grid to this initial concentration
 		setAllValueAt(concentration);
 		
@@ -172,8 +175,7 @@ public class SoluteGrid extends SpatialGrid
 	 * 
 	 * @param aSolG	Solute grid on which to base a new solute grid
 	 */
-	public SoluteGrid(SoluteGrid aSolG)
-	{
+	public SoluteGrid(SoluteGrid aSolG) {
 		gridName = aSolG.gridName;
 		diffusivity = aSolG.diffusivity;
 		_domain = aSolG._domain;
@@ -239,12 +241,15 @@ public class SoluteGrid extends SpatialGrid
 	 * \brief Examines all objects at the boundary of the grid, and adjusts them as specified by the boundary condition rules
 	 * 
 	 * Examines all objects at the boundary of the grid, and adjusts them as specified by the boundary condition rules
+	 * 
+	 * @param behaviour Because the Boundary-Bulk gets used for unintentional Grids (makes no sense to put the bulkvalue in the Biomass-Grid)
+	 * the type determines the behaviour of the Boundary
 	 */
-	public void refreshBoundary() 
+	public void refreshBoundary(String behaviour) 
 	{
 		for (AllBC aBC:_domain.getAllBoundaries()) 
 		{
-				aBC.refreshBoundary(this);
+				aBC.refreshBoundary(this, behaviour);
 		}
 	}
 

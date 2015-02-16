@@ -10,8 +10,8 @@
 package simulator.agent.zoo;
 
 import idyno.SimTimer;
+import simulator.Simulator;
 import simulator.agent.LocatedAgent;
-
 import utils.ExtraMath;
 
 /**
@@ -46,9 +46,9 @@ public class BactEPS extends Bacterium
 	 * monitors agent death. In this case also manages EPS hydrolysis
 	 */
 	@Override
-	protected void internalStep() {
+	protected void internalStep(Simulator aSim) {
 		// Compute mass growth over all compartments
-		grow();
+		grow(aSim);
 		updateSize();
 
 		// test if the EPS capsule has to be excreted

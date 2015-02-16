@@ -448,6 +448,18 @@ public abstract class Reaction implements Serializable
 	 * @param t	Time
 	 */
 	public abstract void computeUptakeRate(double[] s, double mass, double t);
+	
+	/**
+	 * special method for Production of Signals (and other compounds), that are produced by the cell
+	 * 
+	 * @param solute
+	 * @param rate
+	 * @param diffRateGrid
+	 * @param biomass
+	 */
+	public void applySignalReaction (SoluteGrid[] solute, SoluteGrid[] rate, SoluteGrid[] diffRateGrid, SoluteGrid biomass) {
+		
+	}
 
 	/**
 	 * \brief Compute reaction rate on each concerned solute grids Assumes same parameters for all the agents of a same guild
@@ -473,33 +485,86 @@ public abstract class Reaction implements Serializable
 		//globalReactionRate = 0;
 
 
-		for (int i = 1; i<_nI+1; i++) {
-			for (int j = 1; j<_nJ+1; j++) {
-				for (int k = 1; k<_nK+1; k++) {
+		for (int i = 1; i<_nI+1; i++) 
+		
+			for (int j = 1; j<_nJ+1; j++) 
+			
+				for (int k = 1; k<_nK+1; k++) 
+				{
 					// If there is no biomass, go to the next grid element
-					if (biomassGrid.grid[i][j][k]==0) continue;
-
+					if (biomassGrid.grid[i][j][k]==0.0) 
+						continue;
+					
 					// Read local solute concentration
-					for (int iGrid : _mySoluteIndex)
-						s[iGrid] = concGrid[iGrid].grid[i][j][k];
-
+					for (int iGrid=0; iGrid<concGrid.length; iGrid++)	
+					{
+						if ( concGrid[iGrid] == null )
+							continue;
+						// exclude pressure
+						s[iGrid] = concGrid[iGrid].grid[i][j][k]; //TODO pressure-solute causes error (-1 in iterator)
+					}	
 					// First compute local uptake-rates in g.h-1
-					computeUptakeRate(s, biomassGrid.grid[i][j][k],0);
-
+					computeUptakeRate(s, biomassGrid.grid[i][j][k],0.0);
+					
 					// Now add them on the received grids
-					for (int iGrid : _mySoluteIndex) {
+					// TODO only add every reaction seperately
+					for (int iGrid=0;iGrid<nSolute;iGrid++) 
+					{
+						if ( concGrid[iGrid] == null )
+							continue;
 						reacGrid[iGrid].grid[i][j][k] += _uptakeRate[iGrid];
+						//LogFile.writeLogAlways("uptakeRate: "+_uptakeRate[iGrid]);
 						diffReacGrid[iGrid].grid[i][j][k] += _diffUptakeRate[iGrid];
+						//LogFile.writeLogAlways("diffUptakeRate: "+_diffUptakeRate[iGrid]);
 						if (Double.isNaN(reacGrid[iGrid].grid[i][j][k])) 
 							LogFile.writeLog("Warning: NaN generated in Reaction");
 					}
-
 				}
-			}
-		}
+			
+		
 	}
-
 	
+	public void applySingleReaction(SpatialGrid[] concGrid, SpatialGrid reacGrid,
+							SpatialGrid[] diffReacGrid, SpatialGrid biomassGrid)
+	{
+		nSolute = concGrid.length;
+		double[] s = new double[nSolute];
+
+		int _nI, _nJ, _nK;
+		_nI = biomassGrid.getGridSizeI();
+		_nJ = biomassGrid.getGridSizeJ();
+		_nK = biomassGrid.getGridSizeK();
+		//globalReactionRate = 0;
+
+
+		for (int i = 1; i<_nI+1; i++) 
+			for (int j = 1; j<_nJ+1; j++) 
+				for (int k = 1; k<_nK+1; k++) 
+				{
+					// If there is no biomass, go to the next grid element
+					if (biomassGrid.grid[i][j][k]==0) continue;
+
+					// Read local solute concentration TODO: pressure must not be called here?!
+					for (int iGrid=0; iGrid < nSolute; iGrid++ )
+					{
+						if ( concGrid[iGrid] == null )
+							continue;
+						s[iGrid] = concGrid[iGrid].grid[i][j][k];
+					}		
+					// First compute local uptake-rates in g.h-1
+					computeUptakeRate(s, biomassGrid.grid[i][j][k],0.0);
+					
+					reacGrid.grid[i][j][k] += _specRate;// * biomassGrid.grid[i][j][k];
+					
+					if (Double.isNaN(reacGrid.grid[i][j][k])) 
+						LogFile.writeLog("Warning: NaN generated in Reaction");
+					
+					for (int iGrid : _mySoluteIndex) 
+					{
+						diffReacGrid[iGrid].grid[i][j][k] += _diffUptakeRate[iGrid];
+					}
+				}	
+	}
 
 	/**
 	 * \brief Add the mass of all the agents of the guild on a received grid. The stored value is a CONCENTRATION
@@ -580,7 +645,6 @@ public abstract class Reaction implements Serializable
 		{
 			// To obtain figure for this solute multiply the sum of the reaction rates by the stochiometry
 			_soluteProductionOrUptake[iSolute] = _soluteYield[iSolute]*getReactionRateSum();
-			
 		}
 	}
 

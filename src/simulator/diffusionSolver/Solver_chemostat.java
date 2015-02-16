@@ -125,10 +125,10 @@ public class Solver_chemostat extends DiffusionSolver
 	 * @param xmlRoot	Root element of XML tags containing chemostat related parameters
 	 */
 	@Override
-	public void init(Simulator aSimulator, XMLParser xmlRoot) 
+	public void init(Simulator aSimulator, XMLParser xmlRoot, Double agentTimeStep) 
 	{
 
-		super.init(aSimulator, xmlRoot);
+		super.init(aSimulator, xmlRoot, agentTimeStep);
 
 		// _soluteList and _reactions are in DiffusionSolver
 		nSolute = _soluteList.length;
@@ -243,12 +243,12 @@ public class Solver_chemostat extends DiffusionSolver
 	 */
 	public void odeSolver(double t0, double rtol, double hmax) {
 
-		Matrix y       = new Matrix(nSolute,1,0);
-		Matrix ynext   = new Matrix(nSolute,1,0);
+		Matrix y       = new Matrix (nSolute,1,0);
+		Matrix ynext   = new Matrix (nSolute,1,0);
 		double t, tnext, tfinal;
 		double h, error;
-		Matrix f1      = new Matrix(nSolute,1,0);
-		Matrix f2      = new Matrix(nSolute,1,0);
+		Matrix f1      = new Matrix (nSolute,1,0);
+		Matrix f2      = new Matrix (nSolute,1,0);
 		Matrix W       = new Matrix (nSolute, nSolute, 0);
 		Matrix invW    = new Matrix (nSolute, nSolute, 0);
 		Matrix k1      = new Matrix (nSolute, 1, 0);

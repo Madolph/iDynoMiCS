@@ -8,6 +8,8 @@
  */
 package utils;
 
+import simulator.SoluteGrid;
+
 /**
  * \brief Implements static utility functions for used in multigrid method.
  * 
@@ -52,11 +54,66 @@ public abstract class MatrixOperations
 				for (int k = 0; k<a[i][j].length; k++)
 					a[i][j][k] += b[i][j][k];
 	}
-
+	/**
+	 * Exchanges two columns of a Matrix, note that the indices a and b start with 0, not 1!
+	 * 
+	 * @param A The Matrix (2D)
+	 * @param a The index of the first column
+	 * @param b The index of the second column
+	 */
+	public static void switchColumn(double A[][], int a, int b) {
+		
+		double[][] C= new double[2][A[a].length];
+		
+		//save both rows
+		for (int i=0;i<A[a].length;i++)
+		{
+			C[0][i]=A[a][i];
+			C[1][i]=A[b][i];
+		}
+		
+		//exchange rows
+		for (int i=0;i<A[a].length;i++)
+		{
+			A[a][i]=C[1][i];
+			A[b][i]=C[0][i];
+		}
+	}
+	
+	/**
+	 * Multiplies a row of a Matrix by a Coefficient
+	 * 
+	 * @param A the Matrix (2D)
+	 * @param a the index of the row (index starts with 0!)
+	 * @param koeff the Coefficient
+	 */
+	public static void multiplyRow(double A[][], int a, double coeff) {
+		
+		for (int i=0;i<A.length;i++)
+		{
+			A[i][a]=A[i][a]*coeff;
+		}
+	}
+	
+	/**
+	 * adds a Row of a Matrix to another row (or substracts, if neccessary)
+	 * 
+	 * @param A the Matrix (2D)
+	 * @param a the row to be added (subtracted) (index starts with 0!)
+	 * @param b the row to be changed (index starts with 0!)
+	 * @param coeff the coefficient for row a (-1 for substraction)
+	 */
+	public static void addRowToRow(double A[][], int a, int b, double coeff) {
+		
+		for (int i=0;i<A.length;i++)
+		{
+				A[i][b]=A[i][b]+(A[i][a]*coeff);
+		}
+	}
+	
+	
 	/**
      * \brief Multiply every entry of matrix a by the corresponding entry in matrix b
-     * 
-     * Multiply every entry of matrix a to the corresponding entry in matrix b
      * 
      * @param a	Matrix whos value is being increased
      * @param b	Matrix of values to multiply to the matrix above
@@ -71,8 +128,6 @@ public abstract class MatrixOperations
 	/**
      * \brief Multiply every entry of matrix a by a specified value b
      * 
-     * Multiply every entry of matrix a by a specified value b
-     * 
      * @param a	Matrix whos value is being increased
      * @param b	Double value by which every entry in the matrix should be multiplied
      */
@@ -85,8 +140,6 @@ public abstract class MatrixOperations
 
 	/**
      * \brief Subtract every entry of matrix b from the corresponding entry in matrix a.
-     * 
-     * Subtract every entry of matrix b from the corresponding entry in matrix a.
      * 
      * @param a	Matrix whos value is being decreased
      * @param b	Matrix containing the values by which to decrease the matrix above
@@ -269,6 +322,29 @@ public abstract class MatrixOperations
 			out.append("\n");
 		}
 		return out.toString();
+	}
+	
+	public static String gridToString(SoluteGrid soluteGrid) {
+		StringBuffer out = new StringBuffer();
+		for (int i=0; i<soluteGrid._nI+2; i++)
+		{
+			for (int j=0; j<soluteGrid._nJ+2; j++)
+			{
+				for (int k=0; k<soluteGrid._nK+2; k++)
+				{
+					out.append(soluteGrid.grid[i][j][k]);
+					
+					out.append(SEPARATOR);
+				}
+				out.append("\n");
+			}
+			out.append("\n");
+		}
+		return out.toString();
+	}
+	public static String soluteGridToString(SoluteGrid[] SoluteGrid) {
+		//for (int i=0; i<SoluteGrid.length-1; i++)		
+			return gridToString(SoluteGrid[SoluteGrid.length-1]);
 	}
 
 	/**

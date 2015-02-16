@@ -10,9 +10,9 @@
 package simulator.geometry.boundaryConditions;
 
 import utils.XMLParser;
-
 import simulator.Simulator;
 import simulator.SoluteGrid;
+import simulator.SpatialGrid;
 import simulator.agent.LocatedAgent;
 import simulator.agent.LocatedGroup;
 import simulator.geometry.*;
@@ -68,7 +68,7 @@ public class BoundaryConstant extends AllBC{
 	 * @param aSoluteGrid	Grid of solute information which is to be refreshed by the solver
 	 */
 	@Override
-	public void refreshBoundary(SoluteGrid aSoluteGrid) {
+	public void refreshBoundary(SpatialGrid aSoluteGrid, String type) {
 		// Some internal variables
 		double bulkValue = _connectedBulk.getValue(aSoluteGrid.soluteIndex);
 

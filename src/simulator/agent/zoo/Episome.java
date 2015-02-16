@@ -199,7 +199,7 @@ public class Episome extends InfoAgent {
 	/* _______________________________________________________________________ */
 
 	@Override
-	public void internalStep() {
+	public void internalStep(Simulator aSim) {
 	}
 
 	/**

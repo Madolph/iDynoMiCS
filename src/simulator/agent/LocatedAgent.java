@@ -18,7 +18,6 @@ import java.awt.Color;
 import utils.ExtraMath;
 import utils.LogFile;
 import utils.XMLParser;
-
 import simulator.*;
 import simulator.geometry.ContinuousVector;
 import simulator.geometry.Domain;
@@ -294,9 +293,9 @@ public abstract class LocatedAgent extends ActiveAgent implements Cloneable
 	 * the agent has reached the size at which it must divide
 	 */
 	@Override
-	protected void internalStep() {
+	protected void internalStep(Simulator aSim) {
 		// Compute mass growth over all compartments
-		grow();
+		grow(aSim);
 
 		// Apply this mass growth of all compounds on global radius and mass
 		updateSize();

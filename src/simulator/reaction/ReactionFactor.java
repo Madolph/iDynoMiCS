@@ -198,7 +198,7 @@ public class ReactionFactor extends Reaction
 	 * 
 	 * @param s	The concentration of solute locally observed
 	 * @param mass	Mass of the catalyst (cell...)
-	 * @param t	Time
+	 * @param t	Time (unused)
 	 */
 	@Override
 	public void computeUptakeRate(double[] s, double mass, double t) {
@@ -207,8 +207,10 @@ public class ReactionFactor extends Reaction
 		computeSpecificGrowthRate(s);
 
 		// Now compute uptake rate
-		for (int iSolute : _mySoluteIndex) {
+		for (int iSolute=0;iSolute<s.length;iSolute++) 
+		{
 			_uptakeRate[iSolute] = mass*_specRate*_soluteYield[iSolute];
+			//LogFile.writeLogAlways("specRate: "+_specRate);
 		}
 
 		int iSolute;
@@ -247,22 +249,31 @@ public class ReactionFactor extends Reaction
 		_specRate = _muMax;
 		int soluteIndex;
 
-		for (int iFactor = 0; iFactor<_soluteFactor.length; iFactor++) {
+		for (int iFactor = 0; iFactor<_soluteFactor.length; iFactor++) 
+		{
 			soluteIndex = _soluteFactor[iFactor];
-			if (soluteIndex==-1) {
+			if (soluteIndex==-1) 
+			{
 				marginalMu[iFactor] = _kineticFactor[iFactor].kineticValue(0);
 				marginalDiffMu[iFactor] = _muMax*_kineticFactor[iFactor].kineticDiff(0);
-			} else {
+			} 
+			else 
+			{
 				marginalMu[iFactor] = _kineticFactor[iFactor]
-				                                     .kineticValue(s[_soluteFactor[iFactor]]);
+												.kineticValue(s[_soluteFactor[iFactor]]);
+				
+				//LogFile.writeLogAlways("_kin-Fac: "+_kineticFactor[iFactor].kineticValue(s[_soluteFactor[iFactor]]));
+				
 				marginalDiffMu[iFactor] = _muMax
 				*_kineticFactor[iFactor].kineticDiff(s[_soluteFactor[iFactor]]);
 			}
 		}
 
-		for (int iFactor = 0; iFactor<_soluteFactor.length; iFactor++) {
+		for (int iFactor = 0; iFactor<_soluteFactor.length; iFactor++) 
+		{
 			_specRate *= marginalMu[iFactor];
-			for (int jFactor = 0; jFactor<_soluteFactor.length; jFactor++) {
+			for (int jFactor = 0; jFactor<_soluteFactor.length; jFactor++) 
+			{
 				if (jFactor!=iFactor) marginalDiffMu[jFactor] *= marginalMu[iFactor];
 			}
 		}

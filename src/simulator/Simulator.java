@@ -85,7 +85,7 @@ public class Simulator
 	/**
 	 * Time counter used to generate a summary report of the previous iteration
 	 */
-	private double	_lastOutput;
+	private double				  _lastOutput;
 	
 	/**
 	 * Writer for pov-ray output files. Used in biofilm simulations but not for modelling chemostats
@@ -107,15 +107,22 @@ public class Simulator
 	 */
 	public static boolean isChemostat =false;
 	
+	public static boolean isTimeDependent =false;
+	
 	/**
 	 * Boolean stating whether we are using a fluctuating environment. Defaults to false
 	 */
-	public static boolean isFluctEnv=false;
+	public static boolean isFluctEnv = false;
 	
 	/**
 	 * Flag that triggers the use of the MultiEpiBac and MultiEpisome classes. Added by Sonia Martins Jan 2011
 	 */
-	public static boolean multiEpi=false;
+	public static boolean multiEpi = false;
+	
+	/**
+	 * Flag that triggers Agar-Behaviour
+	 */
+	public static boolean isAgar = false;
 	
 	/**
 	 * Flag that notes whether the simulation is 3D or 2D
@@ -281,22 +288,15 @@ public class Simulator
 
 			// Now Describe initial conditions
 			if (!Simulator.isChemostat)
-			{
 				povRayWriter.write(SimTimer.getCurrentIter());
-			}	
-			
-			writeReport();
-			 
-			// Simulation initialisation complete	 
-			 
-
+							
+			writeReport();			 
+			// Simulation initialisation complete	 			 
 		} 
 		catch (Exception e) 
-		{
-			LogFile.writeLog("Simulator.CreateSystem(): error met: "+e);
+			{ LogFile.writeLog("Simulator.CreateSystem(): error met: "+e);
 			e.printStackTrace();
-			System.exit(-1);
-		}
+			System.exit(-1); }
 
 	}
 
@@ -326,8 +326,7 @@ public class Simulator
 	 * 
 	 * @return Boolean stating if the simulation is running (true) or has stopped (false)
 	 */
-	public boolean simulationIsRunning() 
-	{
+	public boolean simulationIsRunning() {
 		return !SimTimer.simIsFinished();
 	}
 
@@ -339,8 +338,7 @@ public class Simulator
 	 * Perform a full iteration of the simulation initialised under the conditions in a given protocol file. Accessed via the simulators 
 	 * run method
 	 */
-	public void step() 
-	{
+	public void step() {
 		try
 		{
 			long startTime = System.currentTimeMillis();
@@ -349,37 +347,29 @@ public class Simulator
 			SimTimer.applyTimeStep();
 	
 			// Check if new agents should be created
-			checkAgentBirth();
-			
+			checkAgentBirth();			
 			
 			// Perform diffusion-reaction relaxation
-			
 			LogFile.chronoMessageIn();
-	
 			for (DiffusionSolver aSolver : solverList)
 				aSolver.initAndSolve();
-			LogFile.chronoMessageOut("Solving Diffusion-reaction");
-	
+			LogFile.chronoMessageOut("Solving Diffusion-reaction");	
 	
 			//sonia: 25-08-09
-			if(isFluctEnv){
+			if(isFluctEnv)
 				FluctEnv.setEnvCycle(FluctEnv.envNameList.indexOf(FluctEnv.envStatus));
-			}
-	
+			
 			// Perform agent stepping
 			agentGrid.step(this);
 			LogFile.chronoMessageOut("Simulating agents");
-			
-			
-	
 	
 			// output result files
 			// this will output if we're close to the output period but haven't
 			// quite hit it (which happens sometimes due to floating point issues)
 			// (this will also output for sure on the last step) 
-			if ( ((SimTimer.getCurrentTime()-_lastOutput)
-					>= (_outputPeriod - 0.01*SimTimer.getCurrentTimeStep())) ||
-					SimTimer.simIsFinished() ) {
+			if ( ((SimTimer.getCurrentTime()-_lastOutput) >= 
+				  (_outputPeriod - 0.01*SimTimer.getCurrentTimeStep())) || SimTimer.simIsFinished() ) 
+			{
 				writeReport();
 				
 				//sonia 26.04.2010
@@ -395,14 +385,15 @@ public class Simulator
 			// Rob 11/2/2012
 			// If this is an invComp simulation (default is false), stop if there are fewer than
 			// two species remaining
-			if (invComp) {
+			if (invComp) 
+			{
 				int nSpecies = speciesDic.size();
 				int specAlive = 0;
 				
-				for (int iSpecies = 0; iSpecies<nSpecies; iSpecies++) {
+				for (int iSpecies = 0; iSpecies<nSpecies; iSpecies++) 					
 					if (speciesList.get(iSpecies).getPopulation() > 0)
 						specAlive++; 
-				}
+				
 				if (specAlive < 2)
 					continueRunning = false;
 			}
@@ -412,9 +403,7 @@ public class Simulator
 			
 		}
 		catch(Exception e)
-		{
-			e.printStackTrace();
-		}
+			{ e.printStackTrace(); }
 	}
 
 	
@@ -427,8 +416,7 @@ public class Simulator
 	 * generator is also initialised, either from scratch or from a previous state if this is a re-run. Thirdly, the simulation timer 
 	 * is initialised. Finally, a data dictionary is created for use by other utility methods within the simulation
 	 */
-	public void createSimulator() 
-	{
+	public void createSimulator() {
 		System.out.print("\t Simulator: ");
 		XMLParser localRoot = new XMLParser(_protocolFile.getChildElement("simulator"));
 
@@ -449,10 +437,8 @@ public class Simulator
 		// Put in an IF to check as if using protocol files for previous versions, this tag may not be present
 		// We want this to remain at the default "onetime" rather than be set to null if the tag is not present
 		// KA 170513
-		if(localRoot.getParam("attachment")!=null)
-		{
-			attachmentMechanism = localRoot.getParam("attachment");
-		}
+		if(localRoot.getParam("attachment")!=null)		
+			attachmentMechanism = localRoot.getParam("attachment");		
 
 		// Now we need to determine if a random.state file exists. This is used to initialise the random number generator
 		//sonia 05.2011 bug fix: the code was not finding the random.state file because no path was 
@@ -469,28 +455,20 @@ public class Simulator
 			FileInputStream randomFileInputStream;
 			ObjectInputStream randomObjectInputStream;
 			try 
-			{
-				randomFileInputStream = new FileInputStream(Idynomics.currentPath+File.separator+"random.state");
+				{ randomFileInputStream = new FileInputStream(Idynomics.currentPath+File.separator+"random.state");
 				randomObjectInputStream = new ObjectInputStream(randomFileInputStream);
 				ExtraMath.random = (MTRandom) randomObjectInputStream.readObject();
-				LogFile.writeLog("Read in random number generator");
-			}
+				LogFile.writeLog("Read in random number generator"); }
 			catch (Exception e) 
-			{
-				LogFile.writeLog("Simulator.createSimulator() : error met while reading in random number state file" + e);
-				System.exit(-1);
-			}
+				{ LogFile.writeLog("Simulator.createSimulator() : error met while reading in random number state file" + e);
+				System.exit(-1); }
 			finally
 			{
 				try
-				{
-					System.out.println("Random number generator test: "+ExtraMath.random.nextInt());
-				}
+					{ System.out.println("Random number generator test: "+ExtraMath.random.nextInt()); }
 				catch(java.lang.NullPointerException npe)
-				{
-					LogFile.writeLog("Random number generator test failed!");
-					LogFile.writeLog("See Simulator.createSimulator()");
-				}
+					{ LogFile.writeLog("Random number generator test failed!");
+					LogFile.writeLog("See Simulator.createSimulator()"); }
 			}
 		}
 		else 
@@ -498,17 +476,13 @@ public class Simulator
 			// No random state file exists - initialise the random state generator without any previous information
 			long randomSeed;
 			try
-			{
-				String rSeed = localRoot.getParam("randomSeed");
+				{ String rSeed = localRoot.getParam("randomSeed");
 				randomSeed = Integer.parseInt(rSeed);
-				LogFile.writeLog("Using random seed in protocol file: "+randomSeed);
-			}
+				LogFile.writeLog("Using random seed in protocol file: "+randomSeed); }
 			catch (Exception e)
-			{
-				randomSeed = (long) (Math.random()*Calendar.getInstance().getTimeInMillis());
+				{ randomSeed = (long) (Math.random()*Calendar.getInstance().getTimeInMillis());
 				LogFile.writeLog("No valid random seed given in protocol file.");
-				LogFile.writeLog("Using a randomly generated seed : "+randomSeed);
-			}
+				LogFile.writeLog("Using a randomly generated seed : "+randomSeed); }
 			
 			ExtraMath.random = new MTRandom(randomSeed);
 			System.out.println("Random number generator test: "+ExtraMath.random.nextInt());
@@ -520,12 +494,9 @@ public class Simulator
 
 		// need to reset the time & iterate if we're restarting a run
 		if (localRoot.getParamBool("restartPreviousRun")) 
-		{
-
 			simTimer.setTimerState(_resultPath+File.separator
-					+"lastIter"+File.separator
-					+"env_Sum(last).xml");
-		}
+									+"lastIter"+File.separator
+									+"env_Sum(last).xml"); 
 
 		// Create dictionary - creates lists of the names of each of the species, particles, solutes, reactions, and solvers in this
 		// simulation for reference later
@@ -542,8 +513,7 @@ public class Simulator
 	 *  
 	 * @param resultPath	String stating the file path where these files should be created
 	 */
-	public void createFiles(String resultPath) 
-	{
+	public void createFiles(String resultPath) {
 		XMLParser localRoot = new XMLParser(_protocolFile.getChildElement("simulator"));
 
 		_outputPeriod = localRoot.getParamTime("outputPeriod");
@@ -566,10 +536,8 @@ public class Simulator
 		// Initialise povray files
 		// Rob: no need in a chemostat
 		if (!Simulator.isChemostat)
-		{
-			povRayWriter = new PovRayWriter();
-			povRayWriter.initPovRay(this, resultPath);
-		}
+			{ povRayWriter = new PovRayWriter();
+			povRayWriter.initPovRay(this, resultPath); }
 	}
 
 	/**
@@ -579,8 +547,7 @@ public class Simulator
 	 * were specified in the XML protocol file
 	 * 
 	 */
-	public void createDictionary() 
-	{
+	public void createDictionary() {
 		LinkedList<Element> list;
 
 		// Build the list of "solutes" markup
@@ -636,8 +603,7 @@ public class Simulator
 	 * extending the abstract class "BoundaryCondition"
 	 * 
 	 */
-	public void createWorld() 
-	{
+	public void createWorld() {
 		// Creation of the world
 		try 
 		{
@@ -656,12 +622,10 @@ public class Simulator
 			System.out.println("\t done");
 		} 
 		catch (Exception e) 
-		{
 			// Log the error creating the world
-			LogFile.writeLog("Simulator.createWorld() : "+e);
+			{ LogFile.writeLog("Simulator.createWorld() : "+e);
 			e.printStackTrace();
-			System.exit(-1);
-		}
+			System.exit(-1); }
 	}
 
 	/**
@@ -672,8 +636,7 @@ public class Simulator
 	 * 
 	 * @author Brian Merkey (brim@env.dtu.dk, bvm@northwestern.edu)
 	 */
-	public void recreateBulkConditions() throws Exception 
-	{
+	public void recreateBulkConditions() throws Exception {
 		String bulkName;
 		int soluteIndex;
 		String soluteName;
@@ -690,14 +653,12 @@ public class Simulator
 				throw new Exception("Bulk "+bulkName+" is not specified in protocol file");
 
 			LogFile.writeLog("\t\tInitializing bulk '"+bulkName+"' from input file.");
-
 			Bulk thisBulk = world.getBulk(bulkName);
 
 			// now set the solutes within this bulk
 			for (Element aSoluteMarkUp : aBulkRoot.buildSetMarkUp("solute")) 
 			{
 				XMLParser aSoluteRoot = new XMLParser(aSoluteMarkUp);
-
 				soluteName = aSoluteRoot.getAttributeStr("name");
 				soluteIndex = getSoluteIndex(soluteName);
 
@@ -706,11 +667,9 @@ public class Simulator
 					throw new Exception("Solute "+soluteName+" is not in protocol file");
 
 				// finally set the value
-
 				thisBulk.setValue(soluteIndex, Double.parseDouble(aSoluteRoot.getElement().getValue()));
 				LogFile.writeLog("\t\tsolute "+soluteName+" is now: "+thisBulk.getValue(soluteIndex));
 			}
-
 			LogFile.writeLog("\t\tInitialized bulk '"+bulkName+"' from input file.");
 		}
 
@@ -724,8 +683,7 @@ public class Simulator
 	 * with values representing the initial concentration levels of the solute, taken from the Sbulk specification in the protocol file
 	 * 
 	 */
-	public void createSolutes() 
-	{
+	public void createSolutes() {
 		System.out.print("\t Solutes: \n");
 		try 
 		{
@@ -734,21 +692,17 @@ public class Simulator
 			
 			// First get a linked list of all the Solute tags in the XML protocol file
 			for (Element aSoluteMarkUp : _protocolFile.buildSetMarkUp("solute")) 
-			{
 				// Now to parse each solute in turn
-				XMLParser aSoluteRoot = new XMLParser(aSoluteMarkUp);
+				{ XMLParser aSoluteRoot = new XMLParser(aSoluteMarkUp);
 				soluteList[iSolute] = new SoluteGrid(this, aSoluteRoot);
 				LogFile.writeLog("\t\t"+soluteList[iSolute].getName()+" ("+soluteList[iSolute].soluteIndex+")");
-				iSolute++;
-			}
+				iSolute++; }
+			
 			System.out.println("\t done");
 		} 
 		catch (Exception e) 
-		{
-			LogFile.writeLog("Simulator.createSolutes() : error met " + e);
-
-			System.exit(-1);
-		}
+			{ LogFile.writeLog("Simulator.createSolutes() : error met " + e);
+			System.exit(-1); }
 	}
 
 	/**
@@ -757,8 +711,7 @@ public class Simulator
 	 * This method creates all the reactions that were described in the XML protocol file, storing these in an array of reaction 
 	 * objects.
 	 */
-	public void createReactions() throws Exception 
-	{
+	public void createReactions() throws Exception {
 		Reaction aReaction;
 
 		LogFile.writeLog("\t Reactions: \n");
@@ -768,8 +721,7 @@ public class Simulator
 		
 		// Now to go through each reaction in the file
 		for (Element aReactionMarkUp : _protocolFile.buildSetMarkUp("reaction")) 
-		{
-			XMLParser aReactionRoot = new XMLParser(aReactionMarkUp);
+			{ XMLParser aReactionRoot = new XMLParser(aReactionMarkUp);
 			// Create a reaction object
 			aReaction = (Reaction) aReactionRoot.instanceCreator("simulator.reaction");
 			// Initialise that reation as specified in the XML file
@@ -777,12 +729,9 @@ public class Simulator
 
 			// register the created object into the reactions container
 			reactionList[iReaction] = aReaction;
-			iReaction++;
-			
-			aReaction.register(aReaction.reactionName, this);
-			
-			LogFile.writeLog("\t\t"+aReaction.reactionName+" ("+aReaction.reactionIndex+")");
-		}
+			iReaction++;			
+			aReaction.register(aReaction.reactionName, this);			
+			LogFile.writeLog("\t\t"+aReaction.reactionName+" ("+aReaction.reactionIndex+")"); }
 		
 		LogFile.writeLog("\t done");
 	}
@@ -807,21 +756,22 @@ public class Simulator
 				// Create the solver,initialise it and register it
 				DiffusionSolver aSolver =
 					(DiffusionSolver) parser.instanceCreator("simulator.diffusionSolver");
-				
+				LogFile.writeLogAlways("Made a solver");
 				// Create the solver object
-				aSolver.init(this, parser);
-				
+				if (aSolver == null)
+					LogFile.writeLogAlways("'made a solver' my ass...");
+				aSolver.init(this, parser, agentTimeStep);
+				LogFile.writeLogAlways("Initialised a solver");
 				// Add this to the simulation array of solver objects
 				aSolver.register();
 				
-				System.out.println("\t\t"+aSolver.solverName+" ("+aSolver.solverIndex+")");
+				System.out.println("\t\t"+aSolver.solverName+" ("+aSolver.solverIndex+")"); 
 			}
-
 			System.out.println("\t done");
 		}
 		catch(Exception e)
-		{
-			LogFile.writeLog("Error in Simulator.creatSolvers(): "+e);
+		{ 
+			LogFile.writeLog("Error in Simulator.creatSolvers(): "+e); 
 		}
 	}
 
@@ -833,8 +783,7 @@ public class Simulator
 	 * each species are created and initialised
 	 * 
 	 */
-	public void createSpecies() throws Exception 
-	{
+	public void createSpecies() throws Exception {
 		// THIS PROCESS IS CONDUCTED IN THREE DISTINCT STAGES
 		// STAGE 1: CREATE THE SPECIES (AND THE PROGENITOR) AND REGISTER IT
 		try 
@@ -844,35 +793,25 @@ public class Simulator
 			XMLParser speciesDefaults;
 			// Read in the 'Species Defaults' from the parameter file
 			if(_protocolFile.getChildElement("speciesDefaults") != null)
-			{
-			    speciesDefaults = new XMLParser(_protocolFile.getChildElement("speciesDefaults"));
-			}
-			else
-			{
+			    speciesDefaults = new XMLParser(_protocolFile.getChildElement("speciesDefaults"));			
+			else			
 				speciesDefaults = new XMLParser(new Element("speciesDefaults"));
-			}
-			
 			
 			// Now iterate through all species specified in the protocol file
 			for (Element aSpeciesMarkUp : _protocolFile.buildSetMarkUp("species")) 
-			{
+
 				// Create a new species object for this specification
-				Species aSpecies = new Species(this, new XMLParser(aSpeciesMarkUp),speciesDefaults); 
+				{ Species aSpecies = new Species(this, new XMLParser(aSpeciesMarkUp),speciesDefaults); 
 				// Add to the list of species in this simulation
 				speciesList.add(aSpecies);
 				
-				LogFile.writeLog("\t\t"+aSpecies.speciesName+" ("+aSpecies.speciesIndex+")");
-			}
+				LogFile.writeLog("\t\t"+aSpecies.speciesName+" ("+aSpecies.speciesIndex+")"); }
 		
-			System.out.print("\t done\n");
-			
+			System.out.print("\t done\n");			
 		} 
 		catch (Exception e) 
-		{
-			LogFile.writeLog("Error in Simulator.createSpecies() first stage");
-            e.printStackTrace();
-		}
-		
+			{ LogFile.writeLog("Error in Simulator.createSpecies() first stage");
+            e.printStackTrace(); }		
 		
 		// STAGE 2: CREATE THE AGENT GRID
 		try 
@@ -901,25 +840,18 @@ public class Simulator
 				//sonia: creating a list with the plasmid names which will be used afterwards to write the agentSum report
 				// Whether MultiEpiBac and MultiEpisome agents are being used 
 				if(multiEpi)
-				{
+				
 					if(parser.getAttribute("class").equals("MultiEpisome"))
-					{
-						String plName = parser.getAttribute("name");
+						{ String plName = parser.getAttribute("name");
 						Double scanSpeed = parser.getParamDbl("scanSpeed");
 						plasmidList.add(plName);
-						scanSpeedList.add(scanSpeed);
-
-					}
-				}
-			}
-			
+						scanSpeedList.add(scanSpeed); }				
+			}			
 			System.out.print("\t done\n");
 		} 
 		catch (Exception e) 
-		{
-			LogFile.writeLog("Error in Simulator.createSpecies() second stage");
-			e.printStackTrace();
-		}
+			{ LogFile.writeLog("Error in Simulator.createSpecies() second stage");
+			e.printStackTrace(); }
 		
 		// STAGE 3: CREATION OF POPULATIONS OF THE SPECIES
 		// NOTE WE ARE ONLY GOING TO DO STAGE 3 (AT THIS POINT IN DEVELOPMENT) IF ONE TIME ATTACHMENT IS ON
@@ -931,20 +863,15 @@ public class Simulator
 
 			// If there is a previous state file, recreate the species that were present
 			if (useAgentFile)
-			{
-				recreateSpecies();
+				{ recreateSpecies();
 						
 				//sonia: 20-07-09 
 				//I've added the line of code below, so that it is possible to create new agents from the protocol file when restarting
 				//from a previous simulation (environment) using a new protocol file
+				checkAgentBirth(); }
+			else			
 				checkAgentBirth();
-	
-			}
-			else
-			{
-				checkAgentBirth();
-			}
-		
+					
 			System.out.print("\t done\n");
 		}
 			
@@ -958,8 +885,7 @@ public class Simulator
 	 * 
 	 * @throws Exception	Exception thrown if this file cannot be read correctly or file is not consistent with protocol file
 	 */
-	public void recreateSpecies() throws Exception 
-	{
+	public void recreateSpecies() throws Exception {
 		int spIndex, counterSpecies;
 		SpecialisedAgent progenitor;
 		
@@ -988,9 +914,7 @@ public class Simulator
 				// so that all agents will be treated equally
 			} 
 			catch (Exception e)
-			{
-				LogFile.writeLog("Simulator.recreateSpecies() : problem splitting up data");
-			}
+				{ LogFile.writeLog("Simulator.recreateSpecies() : problem splitting up data"); }
 			
 			allAgentData[0] = allAgentData[0].substring(8);
 			
@@ -1012,8 +936,7 @@ public class Simulator
 	 * 
 	 * Introduces a new agent to the simulation, initialises the specified birthday and initial area parameters
 	 */
-	public void checkAgentBirth() 
-	{	
+	public void checkAgentBirth() {	
 		XMLParser parser;
 		int spIndex;
 		boolean creatingAgents = false;
@@ -1028,17 +951,14 @@ public class Simulator
 			// own method. A switch is used to determine which method of attachment is being employed.
 			// Although there are only 2 at the moment (in version 1.2), a switch is useful if further methods are added later
 			
-			if(this.attachmentMechanism.equals("onetime"))
-			{
+			if(this.attachmentMechanism.equals("onetime"))			
 				creatingAgents = this.oneTimeAttachmentAgentBirth(parser,spIndex);
-			}
-			else if(this.attachmentMechanism.equals("selfattach"))
-			{
-				creatingAgents = this.selfAttachmentAgentBirth(parser,spIndex);
-			}
 			
+			else if(this.attachmentMechanism.equals("selfattach"))			
+				creatingAgents = this.selfAttachmentAgentBirth(parser,spIndex);		
 		}
-		if (creatingAgents) agentGrid.relaxGrid();
+		if (creatingAgents) 
+			agentGrid.relaxGrid();
 	}
 
 	/**
@@ -1054,20 +974,15 @@ public class Simulator
 	 */
 	public boolean oneTimeAttachmentAgentBirth(XMLParser parser, int spIndex)
 	{
-		boolean creatingAgents = false;
-		
+		boolean creatingAgents = false;		
 		for (Element aInitMarkUp : parser.buildSetMarkUp("initArea")) 
 		{
-			parser = new XMLParser(aInitMarkUp);
-			
+			parser = new XMLParser(aInitMarkUp);			
 			if (SimTimer.isDuringNextStep(parser.getParamTime("birthday"))) 
-			{
-				this.agentGrid.agentIter = agentGrid.agentList.listIterator();
+				{ this.agentGrid.agentIter = agentGrid.agentList.listIterator();
 				speciesList.get(spIndex).createPop(parser);
-				creatingAgents = true;
-			}
-		}
-		
+				creatingAgents = true; }
+		}		
 		return creatingAgents;
 	}
 	
@@ -1090,21 +1005,16 @@ public class Simulator
 		// Now check the injection period. 
 		if(SimTimer.getCurrentTime()>=speciesList.get(spIndex).cellInjectionStartHour
 			&& SimTimer.getCurrentTime()<=speciesList.get(spIndex).cellInjectionEndHour)
-			{
+			
 				// We're in a cell injection period. In this time, we model cells being injected into the domain. These may then
 				// attach at a different frequency to when this injection is off
-			creatingAgents = 
-					create_Required_Number_Of_SelfAttaching_Agents(speciesList.get(spIndex).injectionOnAttachmentFrequency, 
-																	parser,spIndex);
-			}
+			creatingAgents = create_Required_Number_Of_SelfAttaching_Agents
+							 (speciesList.get(spIndex).injectionOnAttachmentFrequency, parser,spIndex);			
 		else
-		{
-			// Injection is off, attach at the different rate
-			creatingAgents = 
-					create_Required_Number_Of_SelfAttaching_Agents(speciesList.get(spIndex).injectionOffAttachmentFrequency, 
-																	parser,spIndex);
-		}	
 		
+			// Injection is off, attach at the different rate
+			creatingAgents = create_Required_Number_Of_SelfAttaching_Agents
+							 (speciesList.get(spIndex).injectionOffAttachmentFrequency, parser,spIndex);		
 		return creatingAgents;
 	}
 	
@@ -1132,26 +1042,21 @@ public class Simulator
 		double remainder = (cellAttachmentFrequency * SimTimer.getCurrentTimeStep()) - wholeAgentsThisTimeStep;
 		
 		if(remainder>0)
-		{
+		
 			// increment the remainder for this species
 			speciesList.get(spIndex).newAgentCounter = speciesList.get(spIndex).newAgentCounter+remainder;
-		}
+		
 		
 		// Now see if the remainder has totalled a new cell
 		if(speciesList.get(spIndex).newAgentCounter >= 1)
-		{
-			wholeAgentsThisTimeStep++;
-			speciesList.get(spIndex).newAgentCounter--;
-		}
+			{ wholeAgentsThisTimeStep++;
+			speciesList.get(spIndex).newAgentCounter--; }
 		
 		// Now create these agents
 		if(wholeAgentsThisTimeStep>0)
-		{
-			this.agentGrid.agentIter = agentGrid.agentList.listIterator();
+			{ this.agentGrid.agentIter = agentGrid.agentList.listIterator();
 			speciesList.get(spIndex).createBoundaryLayerPop(parser,wholeAgentsThisTimeStep);
-			creatingAgents = true;
-			
-		}
+			creatingAgents = true; }
 		
 		return creatingAgents;
 	}
@@ -1162,8 +1067,7 @@ public class Simulator
 	 * Generate a report with concentrations of solutes and biomass on the default grid and a report with the exhaustive description 
 	 * of all agents. Each report is a new file with a new index
 	 */
-	public void writeReport() 
-	{
+	public void writeReport() {
 		// Update saving counters and file index
 		_lastOutput = SimTimer.getCurrentTime();
 		int currentIter = SimTimer.getCurrentIter(); // bvm added 26.1.2009
@@ -1182,16 +1086,14 @@ public class Simulator
 
 			//sonia:chemostat
 			if(Simulator.isChemostat)
-			{
+			
 				//sonia:chemostat
 				//I've modified refreshBiofilmGrids()
-				soluteList[0].getDomain().refreshBioFilmGrids();
-			}
+				soluteList[0].getDomain().refreshBioFilmGrids();			
 			else
 			{
 				// output the biofilm thickness data
 				//sonia 12.10.09				
-
 				Double [] intvals;
 				StringBuffer value = new StringBuffer();
 				for (Domain aDomain : world.domainList) 
@@ -1204,31 +1106,25 @@ public class Simulator
 					value.append("\t<stddev>"+(ExtraMath.stddev(intvals, false))+"</stddev>\n");
 					value.append("\t<max>"+(ExtraMath.max(intvals))+"</max>\n");
 					value.append("</thickness>\n");
-
 				}
-
 				result[0].write(value.toString());
 				result[1].write(value.toString());
-
 			}
 
 			// Add description of each solute grid
 			for (SoluteGrid aSG : soluteList) 
-			{
 				aSG.writeReport(result[0], result[1]);
-			}
+			
 
 			// Add description of each reaction grid
 			for (Reaction aReac : reactionList) 
-			{
-				aReac.writeReport(result[0], result[1]);
+				{ aReac.writeReport(result[0], result[1]);
 				
 				// KA - August 2013 - For each reaction, calculate the production/uptake of each solute
 				// Thus for each output period, we can report an estimate of production/uptake of each solute
 				// Where outputPeriod > simulation step, the output remains the last simulation step. The user can interpolate
 				// from this if required.
-				aReac.calculateSoluteChange();
-			}
+				aReac.calculateSoluteChange(); }
 			
 
 			// Add description of each species grid
@@ -1236,10 +1132,8 @@ public class Simulator
 
 			// Add description of total biomass
 			for (Domain aDomain : world.domainList) 
-			{
-				aDomain.refreshBioFilmGrids();
-				aDomain.getBiomass().writeReport(result[0], result[1]);
-			}
+				{ aDomain.refreshBioFilmGrids();
+				aDomain.getBiomass().writeReport(result[0], result[1]); }
 
 			// KA AUGUST 2013
 			// Now we're going to add to ENV_STATE the amount of solute produced or consumed in this domain in this step
@@ -1247,22 +1141,16 @@ public class Simulator
 			
 			// Add description of bulks
 			// THIS COMPLETES THE ENV_STATE SOLUTE COUNTS, UNDER THE BULK NAME TAGS
-			for (Bulk aBulk : world.bulkList) 
-			{
+			for (Bulk aBulk : world.bulkList) 			
 				aBulk.writeReport(result[1]);
-			}
-
+			
 			// Close EnvState and EnvSum
 			result[0].closeFile();
 			result[1].closeFile();
-
 		} 
 		catch (Exception e) 
-		{
-			LogFile.writeError("System description of grids failed:"+e.getMessage(),
-			"Simulator.writeReport()");
-		}
-
+			{ LogFile.writeError("System description of grids failed:"+e.getMessage(),
+			"Simulator.writeReport()"); }
 		try 
 		{
 			/* Agents ____________________________________________________ */
@@ -1281,15 +1169,11 @@ public class Simulator
 
 			// Rob 15/2/2011: No need to write povray if it's a chemostat
 			if (!Simulator.isChemostat) povRayWriter.write(currentIter);
-
-			LogFile.writeLog("System description finalized");
-
+				LogFile.writeLog("System description finalized");
 		} 
 		catch (Exception e) 
-		{
-			LogFile.writeError("System description of agents failed:"+e.getMessage(),
-			"Simulator.writeReport()");
-		}
+			{ LogFile.writeError("System description of agents failed:"+e.getMessage(),
+			"Simulator.writeReport()"); }
 
 	}
 	
@@ -1301,8 +1185,7 @@ public class Simulator
 	 * remains the solute figures from just the previous step should the output period be greater than the simulation timestep. The user 
 	 * will have to interpolate from there if this is the case
 	 */
-	public void summariseSoluteProductionOrUptake()
-	{
+	public void summariseSoluteProductionOrUptake() {
 		// KA AUGUST 2013
 		// Now we're going to add to ENV_STATE the amount of solute produced or consumed in this domain, in this step
 		StringBuffer value = new StringBuffer();
@@ -1317,14 +1200,11 @@ public class Simulator
 			// Now we need the total production and uptake for this solute across all the reactions.
 			// Each reaction holds this info
 			double soluteReactionFigure = 0;
-			for (Reaction aReac : reactionList) 
-			{
+			for (Reaction aReac : reactionList) 			
 				soluteReactionFigure+=aReac._soluteProductionOrUptake[iSolute];
-			}
-
-			// Now we have the value, write it to the buffer
-			value.append(soluteReactionFigure);
 			
+			// Now we have the value, write it to the buffer
+			value.append(soluteReactionFigure);			
 			value.append("</solute>");
 		}
 		value.append("</globalProductionRate>\n");
@@ -1337,8 +1217,7 @@ public class Simulator
 	 * 
 	 * Internal chart creation method. Assumed deprecated as never called in code (KA 09/04/13)
 	 */
-	public void createCharts() 
-	{
+	public void createCharts() {
 
 		_graphics = new Chart("Simulation outputs");
 		_graphics.setPath(_resultPath);
@@ -1358,10 +1237,8 @@ public class Simulator
 			graphSet[1].addSeries(new XYSeries(speciesDic.get(iSpecies)));	
 
 		_graphics.init(graphSet,xLegend,yLegend);
-
 		_graphics.pack();
 		_graphics.setVisible(true);
-
 	}
 	
 	/**
@@ -1369,8 +1246,7 @@ public class Simulator
 	 * 
 	 * Deprecated method. Not used in this version of iDynoMiCS (KA 09/04/13)
 	 */
-	public void updateChart() 
-	{
+	public void updateChart() {
 		int nSolute = soluteDic.size();
 		int nSpecies = speciesDic.size();
 
@@ -1383,10 +1259,7 @@ public class Simulator
 					speciesList.get(iSpecies).getPopulation());
 
 		_graphics.repaintAndSave();
-
-
 	}
-
 
 	/**
 	 * \brief Find a Species on the basis of its specified string name
@@ -1396,8 +1269,7 @@ public class Simulator
 	 * @param aSpeciesName
 	 * @return the speciesIndex
 	 */
-	public int getSpeciesIndex(String aSpeciesName) 
-	{
+	public int getSpeciesIndex(String aSpeciesName) {
 		return speciesDic.indexOf(aSpeciesName);
 	}
 
@@ -1409,8 +1281,7 @@ public class Simulator
 	 * @param aSpeciesName	Text string noting the name of the species object required
 	 * @return	The species object of that specified name
 	 */
-	public Species getSpecies(String aSpeciesName) 
-	{
+	public Species getSpecies(String aSpeciesName) {
 		return speciesList.get(getSpeciesIndex(aSpeciesName));
 	}
 
@@ -1428,11 +1299,13 @@ public class Simulator
 		return soluteDic.indexOf(aSoluteName);
 	}
 
-	public SoluteGrid getSolute(String aSoluteName) {
+	public SoluteGrid getSolute(String aSoluteName) 
+	{
 		return soluteList[getSoluteIndex(aSoluteName)];
 	}
 
-	public int getReactionIndex(String aReactionName) {
+	public int getReactionIndex(String aReactionName) 
+	{
 		return reactionDic.indexOf(aReactionName);
 	}
 
@@ -1446,6 +1319,7 @@ public class Simulator
 	 */
 	public Reaction getReaction(String aReactionName) 
 	{
+		LogFile.writeLogAlways(aReactionName+" / "+getReactionIndex(aReactionName));
 		return reactionList[getReactionIndex(aReactionName)];
 	}
 
@@ -1468,8 +1342,7 @@ public class Simulator
 	 * @param aSolverName	Name of the solver to return from the array of solvers
 	 * @return	Solver object of the specified name
 	 */
-	public DiffusionSolver getSolver(String aSolverName) 
-	{
+	public DiffusionSolver getSolver(String aSolverName) {
 		int solInd = getSolverIndex(aSolverName);
 		if (solInd >= 0)
 			return solverList[solInd];
@@ -1494,10 +1367,10 @@ public class Simulator
 		// first check whether we are restarting from a previous run
 		XMLParser restartInfo = new XMLParser(_protocolFile.getChildElement("simulator"));
 
-		if (restartInfo.getParamBool("restartPreviousRun")) {
+		if (restartInfo.getParamBool("restartPreviousRun")) 
+		{
 			// if this is true, then we set the input files as the last files
 			// that were output
-
 			useAgentFile = true;
 			useBulkFile = true;
 
@@ -1510,37 +1383,30 @@ public class Simulator
 
 			LogFile.writeLog("Restarting run from previous state in directory: "
 					+_resultPath);
-
 			return;
 		} 
-
 		// otherwise just do things as usual, but only if input is specified
 		if (_protocolFile.getChildElement("input")==null) return;
 
 		XMLParser input = new XMLParser(_protocolFile.getChildElement("input"));
 
 		useAgentFile = input.getParamBool("useAgentFile");
-		if (useAgentFile) {
-			String agentFileName = input.getParam("inputAgentFileURL");
+		if (useAgentFile) 
+			{ String agentFileName = input.getParam("inputAgentFileURL");
 			// construct the input file name using the path of the protocol file
 			int index = protocolFile.lastIndexOf(File.separator);
 			agentFileName = protocolFile.subSequence(0, index+1)+agentFileName;
-
 			agentFile = new XMLParser(agentFileName);
-			LogFile.writeLog("Using agent input file: "+agentFileName);
-		}
-
+			LogFile.writeLog("Using agent input file: "+agentFileName); }
+		
 		useBulkFile = input.getParamBool("useBulkFile");
-		if (useBulkFile) {
-			String bulkFileName = input.getParam("inputBulkFileURL");
+		if (useBulkFile) 
+			{ String bulkFileName = input.getParam("inputBulkFileURL");
 			// construct the input file name using the path of the protocol file
 			int index = protocolFile.lastIndexOf(File.separator);
 			bulkFileName = protocolFile.subSequence(0, index+1)+bulkFileName;
-
 			bulkFile = new XMLParser(bulkFileName);
-			LogFile.writeLog("Using bulk input file: "+bulkFileName);
-		}
-
+			LogFile.writeLog("Using bulk input file: "+bulkFileName); }
 	}
 
 	/**
@@ -1553,5 +1419,4 @@ public class Simulator
 	public String getResultPath() {
 		return _resultPath;
 	}
-
 }

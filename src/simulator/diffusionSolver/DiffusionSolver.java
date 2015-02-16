@@ -82,6 +82,8 @@ public abstract class DiffusionSolver
 	 */
 	protected Boolean			_active = false;
 	
+	public boolean				isTimeDep = false;
+	
 	
 	/*************************************************************************************************************************
 	 * CLASS METHODS 
@@ -95,7 +97,7 @@ public abstract class DiffusionSolver
 	 * @param aSim	The simulation object used to simulate the conditions specified in the protocol file
 	 * @param xmlRoot	The XML object containing the definition of one solver in the protocol file
 	 */
-	public void init(Simulator aSim, XMLParser xmlRoot) 
+	public void init(Simulator aSim, XMLParser xmlRoot, Double agentTimeStep) 
 	{
 		String reacName;
 
@@ -152,9 +154,7 @@ public abstract class DiffusionSolver
 			
 			// Add this to the list of solutes affected by this solver if not already present
 			if (!_soluteIndex.contains(aSoluteIndex)) 
-			{
-				_soluteIndex.add(aSoluteIndex);
-			}
+				_soluteIndex.add(aSoluteIndex);	
 		}
 	}
 
@@ -185,10 +185,10 @@ public abstract class DiffusionSolver
 	 * 
 	 * Small routine to use if you have only one solver instead to add one by one all pathways
 	 */
-	public void addAllReactions() {
-		for (int i = 0; i<mySim.reactionList.length; i++) {
-			addReactionWithSolutes(mySim.reactionList[i]);
-		}
+	public void addAllReactions() 
+	{
+		for (int i = 0; i<mySim.reactionList.length; i++) 
+			addReactionWithSolutes(mySim.reactionList[i]);	
 	}
 
 	/**
@@ -208,7 +208,8 @@ public abstract class DiffusionSolver
 	 * 
 	 * Create the solver, initialise the concentration fields, and solve the diffusion reaction equations
 	 */
-	public void initAndSolve(){
+	public void initAndSolve()
+	{
 		if (isActive()) {
 			initializeConcentrationFields();
 			solveDiffusionReaction();

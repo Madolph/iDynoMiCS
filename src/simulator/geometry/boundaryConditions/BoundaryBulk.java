@@ -84,18 +84,38 @@ public class BoundaryBulk extends AllBC{
 	 * Solver for the variable concentration boundary condition. Initialises the course along the shape of the boundary
 	 * 
 	 * @param aSoluteGrid	Grid of solute information which is to be refreshed by the solver
+	 * @param type should have the values: bLayer (treated as boundaryLayer Grid), relDiff (treated as grid for
+	 * relative diffusivity or conc (treated as a concentration-grid)
 	 */
 	@Override
-	public void refreshBoundary(SoluteGrid aSoluteGrid) 
+	public void refreshBoundary(SpatialGrid aSoluteGrid, String type) 
 	{
-		// Store the concentration in the bulk
-		bulkValue = _connectedBulk.getValue(aSoluteGrid.soluteIndex);
-		// bulkValue = 1;
 		// Initialise the course along the shape of the boundary
 		_myShape.readyToFollowBoundary(aSoluteGrid);
-
-		while (_myShape.followBoundary(dcIn, dcOut, aSoluteGrid)) {
-			aSoluteGrid.setValueAt(bulkValue, dcOut);
+		
+		switch (type)
+		{
+			case "bLayer":
+				while (_myShape.followBoundary(dcIn, dcOut, aSoluteGrid))
+				{
+					aSoluteGrid.setValueAt(0.0, dcOut);
+				}
+				break;
+			case "relDiff":	
+				while (_myShape.followBoundary(dcIn, dcOut, aSoluteGrid))
+				{
+					aSoluteGrid.setValueAt(1.0, dcOut);
+				}
+				break;
+			case "conc":
+				// Store the concentration in the bulk
+				bulkValue = _connectedBulk.getValue(aSoluteGrid.soluteIndex);
+				// bulkValue = 1;
+				while (_myShape.followBoundary(dcIn, dcOut, aSoluteGrid)) 
+				{
+				aSoluteGrid.setValueAt(bulkValue, dcOut);
+				}
+				break;
 		}
 	}
 

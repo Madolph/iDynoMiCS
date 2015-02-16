@@ -283,9 +283,9 @@ public class Bacterium extends LocatedAgent implements Cloneable
 	 * monitors agent death
 	 */
 	@Override
-	protected void internalStep() {
+	protected void internalStep(Simulator aSim) {
 		// Compute mass growth over all compartments
-		grow();
+		grow(aSim);
 
 		updateSize();
 

@@ -141,7 +141,7 @@ public class BactAdaptable extends BactEPS
 	 * monitors agent death. In this case also checks switch state
 	 */
 	@Override
-	protected void internalStep() 
+	protected void internalStep(Simulator aSim) 
 	{
 		// check whether we will need to change the switch state
 		respondToConditions();
@@ -150,7 +150,7 @@ public class BactAdaptable extends BactEPS
 		updateActiveReactions();
 		
 		// once the reactions are set up, everything else goes as normal
-		super.internalStep();
+		super.internalStep(aSim);
 	}
 
 	/**

@@ -152,9 +152,10 @@ public abstract class Agent implements Cloneable {
 	 * Implemented fully by agent types that extend Agent
 	 * 
 	 */
-	public void step() {
+	public void step(Simulator aSim)
+	{
 		_lastStep = SimTimer.getCurrentIter();
-		internalStep();
+		internalStep(aSim);
 	}
 
 	// KA - June 13 - this is all commented out in AgentContainer class and thus assumed we don't use this anymmore
@@ -172,7 +173,7 @@ public abstract class Agent implements Cloneable {
 	 * Called at each time step (under the control of the method Step of the class Agent to avoid multiple calls). Implemented by 
 	 * classes that extend Agent
 	 */
-	protected abstract void internalStep();
+	protected abstract void internalStep(Simulator aSim);
 
 
 	/**

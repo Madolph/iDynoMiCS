@@ -12,6 +12,7 @@ package simulator.reaction.kinetic;
 import org.jdom.Element;
 
 import utils.ExtraMath;
+import utils.LogFile;
 import utils.XMLParser;
 
 /**

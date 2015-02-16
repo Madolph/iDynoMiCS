@@ -171,7 +171,9 @@ public class FluctEnv extends Bulk {
      
      
      /**
-      * reads a txt file containing the cumulative probability matrix describing the transitions between environments.
+      * reads a txt file containing the cumulative probability matrix describing 
+      * the transitions between environments.
+      * 
       * @return double 2D array envCumProb
       * @throws FileNotFoundException
       */
@@ -222,7 +224,7 @@ public class FluctEnv extends Bulk {
         	   }
            }
            
-           //else... think how to use a timestep above 1h...and having probabilities hogher than 1...
+           //else... think how to use a timestep above 1h...and having probabilities higher than 1...
      
            
       return envCumProb;
@@ -230,8 +232,9 @@ public class FluctEnv extends Bulk {
      }
      
      /** 
-      * transforms the 2D array containing the transition probabilities into a matrix whose format can be used to perform 
-      * matrix operations
+      * transforms the 2D array containing the transition probabilities into a matrix 
+      * whose format can be used to perform matrix operations
+      * 
       * @return Matrix
       * @throws FileNotFoundException
       */
@@ -243,9 +246,11 @@ public class FluctEnv extends Bulk {
      }
      
     /**
-     * this method sets the new environment state according to the condition: 1st cumulative probability>= random number;
+     * this method sets the new environment state according to the condition: 
+     * (1st cumulative probability >= random number;)
      * it returns the cumulative probability value that has been chosen;  
      * This is called in the step() in Simulator class and it is by default commented out.
+     * 
      * @return double cumpr_val
      * @throws FileNotFoundException
      */
@@ -286,15 +291,16 @@ public class FluctEnv extends Bulk {
    
 	
 	/**
-	 * knowing the cumpr_val and the which row of probabilities is being used for this iteration, we can infer
-	 * the indices of the cumulative probability matrix that correspond to the environment transition.
+	 * knowing the cumpr_val and the which row of probabilities is being used for this iteration, 
+	 * we can infer the indices of the cumulative probability matrix 
+	 * that correspond to the environment transition.
 	 * 
 	 * @return arrayList indices
 	 * @throws FileNotFoundException
 	 */
     public ArrayList<Integer> indexCalc() throws FileNotFoundException{
        	
-       	//I had to add values to the empty list so that I can set them... instead of keeping adding eaht timestep...
+       	//I had to add values to the empty list so that I can set them... instead of keep adding each timestep...
        	if (indcounter == 0){
        	indices.add(1);
        	indices.add(2);

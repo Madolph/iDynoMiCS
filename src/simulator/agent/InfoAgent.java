@@ -9,6 +9,8 @@
  */
 package simulator.agent;
 
+import simulator.Simulator;
+
 /**
  * \brief Abstract class used for declaring Episome and MultiEpisome objects
  * 
@@ -23,6 +25,6 @@ public abstract class InfoAgent extends SpecialisedAgent implements HasSpecies {
 	 * Called at each time step of the simulation to compute agent characteristics
 	 */
 	@Override
-	public abstract void internalStep();
+	public abstract void internalStep(Simulator aSim);
 
 }

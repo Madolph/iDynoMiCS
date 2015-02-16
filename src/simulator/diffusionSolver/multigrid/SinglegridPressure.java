@@ -136,7 +136,7 @@ public class SinglegridPressure {
 
 			// refresh the padding elements to enforce
 			// boundary conditions for all solutes
-			_conc.refreshBoundary();
+			_conc.refreshBoundary("conc");
 
 		}
 		return totalError;

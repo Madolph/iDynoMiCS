@@ -160,14 +160,14 @@ public abstract class AllBC{
 
 
 	/**
-	 * \brief Solver for then boundary condition. Initialises the course along the shape of the boundary during multigrid computation 
+	 * \brief Solver for the boundary condition. Initialises the course along the shape of the boundary during multigrid computation 
 	 * 
 	 * Solver for the variable concentration boundary condition. Initialises the course along the shape of the boundary during multigrid computation
 	 * 
 	 * @param aSoluteGrid	Grid of solute information which is to be refreshed by the solver
 	 * see ComputationDomain.refreshBoundaries()
 	 */
-	public abstract void refreshBoundary(SoluteGrid aSoluteGrid);
+	public abstract void refreshBoundary(SpatialGrid aSoluteGrid, String type);
 	
 	/**
      * \brief Method used if a boundary modifies the local diffusivity constant. Most of boundaries do not modify it
@@ -385,5 +385,31 @@ public abstract class AllBC{
 		return 0;
 	}
 	
+	/**
+	* @return discrete height of agarlayer
+	*/
+	public int getAgarlayerHeightD() {
+		// TODO Auto-generated method stub
+		return 0;
+	}
+	
+	/**
+	* @return continuous height of agarlayer
+	*/
+	public double getAgarlayerHeightCC() {
+		// TODO Auto-generated method stub
+		return 0;
+	}
+	
+	/**
+     * @return true if agent crossed a boundary, the crossing of an agent is forbidden
+     * @param cc
+     */
+	public boolean crossingForbidden(ContinuousVector cc) {
+		return _myShape.isOutside(cc);
+	}
+	
+	public void setConcentrations(SoluteGrid aSoluteGrid) {
+	}
 
 }

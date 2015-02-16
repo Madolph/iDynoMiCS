@@ -10,11 +10,13 @@
 package simulator.agent;
 
 import java.util.ArrayList;
+
 import org.jdom.Element;
 
 import idyno.SimTimer;
 import simulator.Simulator;
 import simulator.SpatialGrid;
+import simulator.diffusionSolver.Solver_multigridTimeDependent;
 import simulator.reaction.Reaction;
 import utils.ExtraMath;
 import utils.XMLParser;
@@ -348,8 +350,9 @@ public abstract class ActiveAgent extends SpecialisedAgent implements HasReactio
 	 * the agent has reached the size at which it must divide
 	 */
 	@Override
-	protected void internalStep() {
-		grow();
+	protected void internalStep(Simulator aSim)
+	{
+		grow(aSim);
 		updateSize();
 	}
 
@@ -358,25 +361,101 @@ public abstract class ActiveAgent extends SpecialisedAgent implements HasReactio
 	 * 
 	 * Perform agent growth by calling all active reaction pathways.
 	 */
-	protected void grow()
+	protected void grow(Simulator aSim)
 	{
 		Double deltaMass = 0.0;
 		Double[] deltaParticle = ExtraMath.newDoubleArray(particleMass.length);
 		int reacIndex = 0;
 		Double tStep = SimTimer.getCurrentTimeStep();
 		Double catMass = 0.0; // Catalyst mass
-		Double catYield = 0.0;
+		Double catYield = 0.0; // Catalyst Yield
 		_netGrowthRate = 0.0;
 		_netVolumeRate = 0.0;
 		
-		// Compute mass growth rate of each active reaction
+		if (aSim.isTimeDependent)
+		{
+			Solver_multigridTimeDependent solver = (Solver_multigridTimeDependent) aSim.solverList[0];
+			for (int iReac = 0; iReac<reactionActive.size(); iReac++)
+			{
+				reacIndex = reactionActive.get(iReac);
+				Double reacRate = solver.singleReac[reacIndex].getValueAround(this);
+				//compute growth-rate
+				
+				for (int i = 0; i<particleYield[reacIndex].length; i++)
+				{
+					if (allReactions[reacIndex].autocatalytic)
+					{
+						// Exponential growth/decay
+						catYield = particleYield[reacIndex][allReactions[reacIndex]._catalystIndex];
+						deltaParticle[i] += catMass * (particleYield[reacIndex][i]/catYield)
+										    	* Math.expm1(catYield * reacRate * tStep);
+						deltaMass = deltaParticle[i]/tStep;
+					}
+					else
+					{
+						// Constant growth/decay
+						deltaMass = catMass * particleYield[reacIndex][i]*reacRate;
+						deltaParticle[i] += deltaMass*tStep;
+					}
+					_netGrowthRate += deltaMass;
+					_netVolumeRate += deltaMass/getSpeciesParam().particleDensity[i];
+				}
+			}
+		}	
+		else
+		{
+			// Compute mass growth rate of each active reaction
+			for (int iReac = 0; iReac<reactionActive.size(); iReac++)
+			{
+				// Compute the growth rate
+				reacIndex = reactionActive.get(iReac);
+				
+				catMass = particleMass[allReactions[reacIndex]._catalystIndex];
+				// get the growth rate in [fgX.hr-1]
+				growthRate[reacIndex] = allReactions[reacIndex].computeSpecGrowthRate(this);
+				
+				for (int i = 0; i<particleYield[reacIndex].length; i++)
+				{
+					if (allReactions[reacIndex].autocatalytic)
+					{
+						// Exponential growth/decay
+						catYield = particleYield[reacIndex][allReactions[reacIndex]._catalystIndex];
+						deltaParticle[i] += catMass * (particleYield[reacIndex][i]/catYield)
+										    	* Math.expm1(catYield * growthRate[reacIndex]*tStep);
+						deltaMass = deltaParticle[i]/tStep;
+					}
+					else
+					{
+						// Constant growth/decay
+						deltaMass = catMass * particleYield[reacIndex][i]*growthRate[reacIndex];
+						deltaParticle[i] += deltaMass*tStep;
+					}
+					_netGrowthRate += deltaMass;
+					_netVolumeRate += deltaMass/getSpeciesParam().particleDensity[i];
+				}
+			}
+		}
+		// We adjust the particle masses after calculating all the deltaParticle values
+		// so that the reactions occur simultaneously
+		for (int i = 0; i<particleMass.length; i++)
+			particleMass[i] += deltaParticle[i];
+	}
+	
+	public void growTimeDep() {
+		
+		Double deltaMass = 0.0;
+		Double[] deltaParticle = ExtraMath.newDoubleArray(particleMass.length);
+		int reacIndex = 0;
+		Double tStep = SimTimer.getCurrentTimeStep();
+		Double catMass = 0.0; // Catalyst mass
+		Double catYield = 0.0; // Catalyst Yield
+		_netGrowthRate = 0.0;
+		_netVolumeRate = 0.0;
+		
 		for (int iReac = 0; iReac<reactionActive.size(); iReac++)
 		{
-			// Compute the growth rate
 			reacIndex = reactionActive.get(iReac);
-			catMass = particleMass[allReactions[reacIndex]._catalystIndex];
-			// get the growth rate in [fgX.hr-1]
-			growthRate[reacIndex] = allReactions[reacIndex].computeSpecGrowthRate(this);
+			//compute growth-rate
 			
 			for (int i = 0; i<particleYield[reacIndex].length; i++)
 			{
@@ -398,11 +477,6 @@ public abstract class ActiveAgent extends SpecialisedAgent implements HasReactio
 				_netVolumeRate += deltaMass/getSpeciesParam().particleDensity[i];
 			}
 		}
-		
-		// We adjust the particle masses after calculating all the deltaParticle values
-		// so that the reactions occur simultaneously
-		for (int i = 0; i<particleMass.length; i++)
-			particleMass[i] += deltaParticle[i];
 	}
 	
 	public void updateGrowthRates() {

@@ -287,9 +287,10 @@ public class Planar implements IsShape, Serializable
 	{
 		double res = aSG.getResolution();
 		
-		origin.i = ((int)Math.floor(_pointIn.x/res))-u.i;
-		origin.j = ((int)Math.floor(_pointIn.y/res))-u.j;
-		origin.k = ((int)Math.floor(_pointIn.z/res))-u.k;
+		// changed to ceiling here, because the boundaries were not properly set
+		origin.i = ((int)Math.ceil(_pointIn.x/res))-u.i;
+		origin.j = ((int)Math.ceil(_pointIn.y/res))-u.j;
+		origin.k = ((int)Math.ceil(_pointIn.z/res))-u.k;
 				
 		if(_vectorDCOut.i>0) origin.i+=-1;
 		if(_vectorDCOut.j>0) origin.j+=-1;
@@ -331,8 +332,10 @@ public class Planar implements IsShape, Serializable
 			dcIn.sendSum(origin, move);
 			vectorValid = aSG.isValid(dcIn);
 			// If a valid point has been found, compute its closest neighbour outside
-			if (vectorValid) dcOut.sendSum(dcIn, _vectorDCOut);
-		} while ( !(vectorValid) && indexV<vMax );
+			if (vectorValid) 
+				dcOut.sendSum(dcIn, _vectorDCOut);
+		} 
+		while (!(vectorValid) && indexV<vMax );
 		
 		return vectorValid; 
 	}
@@ -343,8 +346,10 @@ public class Planar implements IsShape, Serializable
      * Process next location in the boundary
      */
 	public void stepBoundary() {
-		if (indexU<uMax) indexU++;
-		else {
+		if (indexU<uMax) 
+			indexU++;
+		else 
+		{
 			indexU = 0;
 			indexV++;
 		}

@@ -1,0 +1,6 @@
+.idea
+*.iml
+bin
+random.state
+results
+scripts_to_start_idynomics/RunIdyno.py

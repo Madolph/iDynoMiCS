@@ -46,10 +46,10 @@
 			simulation will end. -->
 		<timeStep>
 			<param name="adaptive">false</param>
-			<param name="timeStepIni" unit="hour">1</param>
+			<param name="timeStepIni" unit="hour">0.5</param>
 			<param name="timeStepMin" unit="hour">0.05</param>
 			<param name="timeStepMax" unit="hour">1</param>
-			<param name="endOfSimulation" unit="day">3</param>
+			<param name="endOfSimulation" unit="day">0.5</param>
 		</timeStep>
 
 		<!-- Attachment scenario - can be 'onetime', where the cells attach to the substratum initially (as in traditional iDynoMiCS)		
@@ -99,7 +99,7 @@
 	-->
 
 	<solute domain="MyBiofilm" name="MyCOD">
-		<param name="diffusivity" unit="m2.day-1">1e-4</param>
+		<param name="diffusivity" unit="m2.day-1">1e-6</param>
 	</solute>
 	<solute domain="MyBiofilm" name="pressure">
 		<param name="diffusivity" unit="m2.day-1">1</param>
@@ -154,7 +154,7 @@
 			-->
 
 			<solute name="MyCOD">
-				<param name="Sbulk" unit="g.L-1">10e-3</param>
+				<param name="Sbulk" unit="g.L-1">0.1</param>
 				<param name="Sin" unit="g.L-1">10e-3</param>
 			</solute>
 			<solute name="pressure">
@@ -176,7 +176,7 @@
 				global domain size in a direction is the number of elements times the resolution:
 					nI*resolution
 			-->
-			<grid nDim="2" nI="33" nJ="33" nK="1"/>
+			<grid nDim="2" nI="33" nJ="5" nK="1"/>
 			<param name="resolution" unit="um">8</param>
 
 			<!-- 'boundaryLayer' sets the distance above the biofilm/liquid interface that the
@@ -254,7 +254,7 @@
 					<param name="vectorOut" x="0" y="-1" z="0"/>
 				</shape>
 				<shape class="Planar">
-					<param name="pointIn" x="0" y="33" z="0"/>
+					<param name="pointIn" x="0" y="5" z="0"/>
 					<param name="vectorOut" x="0" y="1" z="0"/>
 				</shape>
 			</boundaryCondition>
@@ -328,12 +328,12 @@
 	-->
 
 	<reaction catalyzedBy="biomass" class="ReactionFactor" name="MyGrowthHeterotrophs">
-		<param name="muMax" unit="hour-1">0.7</param>
+		<param name="muMax" unit="hour-1">0.01</param>
 		<kineticFactor class="MonodKinetic" solute="MyCOD">
 			<param name="Ks" unit="g.L-1">2.5e-4</param>
 		</kineticFactor>
 		<yield>
-			<param name="MyCOD" unit="g.g-1">-1.5</param>
+			<param name="MyCOD" unit="g.g-1">-10.0</param>
 			<param name="biomass" unit="g.g-1">1.0</param>
 		</yield>
 	</reaction>
@@ -537,10 +537,10 @@
 
 		<reaction name="MyGrowthHeterotrophs" status="active"/>
 
-		<initArea number="10">
+		<initArea number="1">
 			<param name="birthday" unit="hour">0</param>
-			<coordinates x="0" y="132" z="0"/>
-			<coordinates x="10" y="132" z="0"/>
+			<coordinates x="0" y="0" z="0"/>
+			<coordinates x="8" y="20" z="0"/>
 		</initArea>
 	</species>
 

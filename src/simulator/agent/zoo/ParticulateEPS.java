@@ -246,11 +246,11 @@ public class ParticulateEPS extends LocatedAgent {
 	 * the agent has reached the size at which it must divide, and monitors agent death
 	 */
 	@Override
-	public void internalStep() 
+	public void internalStep(Simulator aSim) 
 	{
 		// Compute mass growth over all compartments and update radius, mass and
 		// volume
-		grow();
+		grow(aSim);
 		updateSize();
 
 		// Divide if you have to

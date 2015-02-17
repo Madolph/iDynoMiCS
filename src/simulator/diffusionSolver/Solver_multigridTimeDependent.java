@@ -29,88 +29,109 @@ import simulator.SoluteGrid;
 import utils.LogFile;
 import utils.XMLParser;
 
-public class Solver_multigridTimeDependent extends DiffusionSolver {
-	protected int 								Agarlayerheight=0;
+public class Solver_multigridTimeDependent extends DiffusionSolver
+{
+	/**
+	 * TODO Is this actually used?
+	 */
+	public int						Agarlayerheight = 0;
+	
 	protected MultigridSoluteTimeDependent 		_bLayer, _diffusivity;
+	
 	protected MultigridSoluteTimeDependent[] 	_solute, _biomass;
-
-	protected SoluteGrid[]      				allSolute, allReac, allDiffReac; 
+	
+	protected SoluteGrid[]      			allSolute, allReac, allDiffReac; 
 	
 	/**
-	 * stores the reaction-rates for one single reaction (without the catalyst/bio-Mass)
+	 * Stores the reaction rates for one single reaction (without the
+	 * catalyst/biomass).
 	 */
 	public SoluteGrid[] 						singleReac;
 	
 	/**
-	 * stores the reactions of each reaction during the time-step (still without the catalyst/bio-Mass)
+	 * Stores the reactions of each reaction during the time-step (without the
+	 * catalyst/biomass).
 	 */
 	public SoluteGrid[]							reacSum;
 	
 	/**
-	 * is used by this solver to out-source fast solutes
+	 * The default solver is used by this solver to out-source fast solutes.
 	 */
 	public Solver_multigrid						steadyStateSolver;
 	
 	/**
-	 * the agent-timestep
+	 * The agent-timestep.
 	 */
 	public Double 								timeStep;
 
 	/**
-	 * a commonly used counter for nSolutes
+	 * Commonly used counter for nSolutes.
 	 */
 	protected static int        				iSolute;
 	
 	/**
-	 * the amount of solutes in the system
+	 * The number of solutes in the system.
 	 */
 	protected int								nSolute; 
 	
 	/**
-	 * the amount of reactions in our system
+	 * The number of reactions in our system.
 	 */
 	protected int								nReaction;
-	protected int               				nCoarseStep, vCycles, nPreSteps, nPosSteps;
+	
+	protected int				nCoarseStep, vCycles, nPreSteps, nPosSteps;
+	
 	protected Domain            				_domain;
 	
 	/**
-	 * delta t for our time-step in the time-dependent solver
+	 * Delta t for our time-step in the time-dependent solver.
 	 */
-	public double 								dt; 
+	public Double 								dt; 
 	
 	/**
-	 * delta t on our finest grid (according to the time-stepping-limitations)
+	 * Spatial resolution of our coarsest grid (might be the finest if
+	 * Multigrid is not used).
 	 */
-	public double 								dtFine; // currently equal to dt, but may be usefull with multigrid
-	public int 									iterations=1; // Katrin: iterations for time dependent solver
+	public Double h = 0.0;
 	
 	/**
-	 * spacial resolution of our coarsest grid (might be the finest of Multigrid is not used)
+	 * The maximal time-step according to our criterion.
+	 * 
+	 * TODO Is this actually used?
 	 */
-	public double h=0.0;
+	public Double maxTime = 0.0;
 	
 	/**
-	 * the maximal time-step according to our criterion
+	 * The amount of steps that has to be performed, only useful for
+	 * coarsening and time-step-variation.
+	 * 
+	 * TODO Is this actually used?
 	 */
-	public double maxTime=0.0;
+	public Double stepAmount = 0.0;
 	
 	/**
-	 * the amount of steps that has to be performed, only usefull for coarsening and time-step-variation
+	 * The amount of levels we coarsen our domain to achieve the coarsest grid
+	 * for our calculation.
+	 * 
+	 * TODO Is this actually used?
 	 */
-	public double stepAmount=0.0;
+	public int startOrder = 0;
 	
 	/**
-	 * the amount of levels we coarsen our domain to achieve the coarsest grid for our calculation
+	 * The highest Diffusivity in our system.
+	 * 
+	 * TODO Is this actually used?
 	 */
-	public int startOrder=0;
+	public Double maxDiff = 0.0;
 	
 	/**
-	 * the highest Diffusivity in our system
+	 * TODO Is this actually used, except for log messages?
 	 */
-	public double maxDiff=0.0;
+	protected Double[] initialConcentration; // starting condition
 	
-	protected double[] initialConcentration; // starting condition
-	
+	/** 
+	 * TODO Is this actually used?
+	 */
 	public boolean				isTimeDep = true;
 	
 	
@@ -125,7 +146,7 @@ public class Solver_multigridTimeDependent extends DiffusionSolver {
 		nPreSteps = xmlRoot.getParamInt("preStep");
 		nPosSteps = xmlRoot.getParamInt("postStep");
 		
-		// Create the table of solute grids
+		// Create the table of solute grids.
 		nSolute = _soluteList.length;
 		_solute = new MultigridSoluteTimeDependent[nSolute];
 		singleReac = new SoluteGrid[_reactions.size()];	
@@ -133,22 +154,23 @@ public class Solver_multigridTimeDependent extends DiffusionSolver {
 		allSolute = new SoluteGrid[nSolute];
 		allReac = new SoluteGrid[nSolute];
 		allDiffReac = new SoluteGrid[nSolute];
-		initialConcentration = new double[nSolute]; // initial concentration for each solute solved by this solver
+		// Initial concentration for each solute solved by this solver.
+		initialConcentration = new Double[nSolute];
 		
 		_domain = aSimulator.world.getDomain(xmlRoot.getAttribute("domain"));
 		_bLayer = new MultigridSoluteTimeDependent(_soluteList[0], "boundary layer");
-		_diffusivity = new MultigridSoluteTimeDependent(_soluteList[0], "relative diffusivity", dt);
+		_diffusivity = new MultigridSoluteTimeDependent(_soluteList[0], "relative diffusivity");
 		LogFile.writeLogAlways("Made bLayer and diffusivity");
-		for (int i = 0; i<nSolute; i++) 
+		for ( int i = 0; i < nSolute; i++ ) 
 		{
-			if (_soluteIndex.contains(i)) 
+			if ( _soluteIndex.contains(i) ) 
 			{
-				double sBulk = mySim.world.getMaxBulkValue(_soluteList[i].soluteIndex);
-				_solute[i] = new MultigridSoluteTimeDependent
-							(_soluteList[i], _diffusivity, _bLayer, dt, mySim, sBulk, _reactions.size());
+				Double sBulk = mySim.world.getMaxBulkValue(_soluteList[i].soluteIndex);
+				_solute[i] = new MultigridSoluteTimeDependent(_soluteList[i],
+						_diffusivity, _bLayer, mySim, sBulk, _reactions.size());
 				initialConcentration[i] =_solute[i].initialConc;
-				System.out.println
-							("Multigrid solute initial concentration: "+_solute[i].soluteName+" "+initialConcentration[i]);
+				System.out.println("Multigrid solute initial concentration: "+
+							_solute[i].soluteName+" "+initialConcentration[i]);
 			} 
 			else 
 			{
@@ -158,30 +180,39 @@ public class Solver_multigridTimeDependent extends DiffusionSolver {
 			LogFile.writeLogAlways("Sorted solute: "+i);
 		}
 		LogFile.writeLogAlways("AgentTimeStep:"+ aSimulator.agentTimeStep);
-		LogFile.writeLogAlways("detat:"+dt);
-		iterations=1;
-		LogFile.writeLogAlways("Iterations in time iteration: "+iterations);
-		// From this moment, nSolute is the number of solutes SOLVED by THIS solver
+		LogFile.writeLogAlways("deltat:"+dt);
+		/*
+		 * From this moment, nSolute is the number of solutes SOLVED by THIS
+		 * solver.
+		 */
 		nSolute = _soluteIndex.size();
 		nReaction = _reactions.size();
-		// Initialize array of reactive biomasses
+		// Initialize array of reactive biomasses.
 		_biomass = new MultigridSoluteTimeDependent[nReaction];
 		for (int i = 0; i<nReaction; i++) 
 		{
-			_biomass[i] = new MultigridSoluteTimeDependent(_soluteList[0], _reactions.get(i).reactionName, dt);
+			_biomass[i] = new MultigridSoluteTimeDependent(_soluteList[0],
+											_reactions.get(i).reactionName);
 			_biomass[i].resetMultigridCopies(0.0);
 			LogFile.writeLogAlways("Made biomass "+i);
 		}
-		
 		LogFile.writeLogAlways("sorting solutes");
-		
-		h=(_solute[0]._referenceSystemSide)/(_solute[0].referenceIndex(
-							 _solute[0]._conc.getGridSizeI()
-							,_solute[0]._conc.getGridSizeJ()
-							,_solute[0]._conc.getGridSizeK()
-																		));
-		
-		// adjust _soluteIndex and create cutSolutes as the Indices for steadyState
+		/*
+		 * TODO A comment would be useful here!
+		 * This is done in several places:
+		 * - MultigridSoluteTimeDependent.MultigridSoluteTimeDependent(...) [twice]
+		 * - MultigridSoluteTimeDependent.implCrankNic(...)
+		 * - MultigridSoluteTimeDependent.computeStableDt(step)
+		 * Could we please make a separate method for it?
+		 */
+		h = _solute[0]._referenceSystemSide;
+		h /= _solute[0].referenceIndex(_solute[0]._conc.getGridSizeI(),
+										_solute[0]._conc.getGridSizeJ(),
+										_solute[0]._conc.getGridSizeK());
+		/*
+		 * Adjust _soluteIndex and create cutSolutes as the indices for
+		 * steadyState.
+		 */
 		ArrayList<Integer> cutSolutes = sortSolutes();
 		
 		LogFile.writeLogAlways("creating second solver now");
@@ -209,10 +240,10 @@ public class Solver_multigridTimeDependent extends DiffusionSolver {
 	}
 
 	/**
-	 * removes all 'fast' solutes from the jurisdiction of this solver 
-	 * and created a List of removed solutes
+	 * Removes all 'fast' solutes from the jurisdiction of this solver 
+	 * and created a List of removed solutes.
 	 *
-	 * @return List of removed solutes (inverse of the resulting _soluteIndex)
+	 * @return List of removed solutes (inverse of the resulting _soluteIndex).
 	 */
 	public ArrayList<Integer> sortSolutes()
 	{
@@ -220,31 +251,41 @@ public class Solver_multigridTimeDependent extends DiffusionSolver {
 		ArrayList<Integer> cutSolutes = new ArrayList<Integer>();
 		int indexShift = 0;
 		LogFile.writeLogAlways("Solutes: "+nSolute);
-		for (int i=0;i<nSolute;i++)
+		for ( int i = 0;i < nSolute; i++ )
 		{
-			double D = _solute[i].realGrid.diffusivity;
-			double nX = _solute[i]._conc.grid.length*h;
-			double nY = _solute[i]._conc.grid[1].length*h;
-			double nZ = _solute[i]._conc.grid[1][1].length*h;
+			Double D = _solute[i].realGrid.diffusivity;
+			/*
+			 * TODO Why not use something like 
+			 * int nX = _solute[i]._conc.getGridSizeI();
+			 * etc?
+			 */
+			Double nX = _solute[i]._conc.grid.length * h;
+			Double nY = _solute[i]._conc.grid[1].length * h;
+			Double nZ = _solute[i]._conc.grid[1][1].length * h;
 			
 			LogFile.writeLogAlways("D: "+D+" / nX: "+nX+" / nY: "+nY+" / nZ: "+nZ);
 			
-			double area = 0.0;
-			area = area + nX;
-			if (nY==1) //1D case
-				area = area*area;
+			/*
+			 * TODO Are you sure this is correct?
+			 * I'm not entirely sure what you're doing here.. some better
+			 * comments would help a lot.
+			 */
+			Double area = nX;
+			if ( nY == 1 ) //1D case
+				area *= area;
 			else //2D case
-				area = area*nY;
+				area *= nY;
 			if (nZ==1); //2D case already done
 			else //3D case
 			{
-				area = area*nZ;
+				area *= nZ;
 				area = Math.cbrt(area);
-				area = area*area;
+				area *= area;
 			}
-			if ((timeStep*D)>=area) //timeStep or uptakeStep?
+			
+			if ( (timeStep*D) >= area ) //timeStep or uptakeStep?
 			{
-				// terminate solute from soluteIndex
+				// Terminate solute from soluteIndex.
 				cutSolutes.add(_soluteIndex.remove(i - indexShift));
 				indexShift++;
 			}

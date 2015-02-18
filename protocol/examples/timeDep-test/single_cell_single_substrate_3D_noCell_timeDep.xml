@@ -99,7 +99,7 @@
 	-->
 
 	<solute domain="MyBiofilm" name="MyCOD">
-		<param name="diffusivity" unit="m2.second-1">5e-11</param>
+		<param name="diffusivity" unit="m2.second-1">5e-12</param>
 	</solute>
 
 	<solute domain ="MyBiofilm" name="MyH2O">

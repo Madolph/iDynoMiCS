@@ -31,16 +31,12 @@ import utils.XMLParser;
 
 public class Solver_multigridTimeDependent extends DiffusionSolver
 {
-	/**
-	 * TODO Is this actually used?
-	 */
-	public int						Agarlayerheight = 0;
 	
 	protected MultigridSoluteTimeDependent 		_bLayer, _diffusivity;
 	
 	protected MultigridSoluteTimeDependent[] 	_solute, _biomass;
 	
-	protected SoluteGrid[]      			allSolute, allReac, allDiffReac; 
+	protected SoluteGrid[]      				allSolute, allReac, allDiffReac; 
 	
 	/**
 	 * Stores the reaction rates for one single reaction (without the
@@ -79,14 +75,7 @@ public class Solver_multigridTimeDependent extends DiffusionSolver
 	 */
 	protected int								nReaction;
 	
-	protected int				nCoarseStep, vCycles, nPreSteps, nPosSteps;
-	
-	protected Domain            				_domain;
-	
-	/**
-	 * Delta t for our time-step in the time-dependent solver.
-	 */
-	public Double 								dt; 
+	protected Domain            				_domain; 
 	
 	/**
 	 * Spatial resolution of our coarsest grid (might be the finest if
@@ -94,57 +83,11 @@ public class Solver_multigridTimeDependent extends DiffusionSolver
 	 */
 	public Double h = 0.0;
 	
-	/**
-	 * The maximal time-step according to our criterion.
-	 * 
-	 * TODO Is this actually used?
-	 */
-	public Double maxTime = 0.0;
-	
-	/**
-	 * The amount of steps that has to be performed, only useful for
-	 * coarsening and time-step-variation.
-	 * 
-	 * TODO Is this actually used?
-	 */
-	public Double stepAmount = 0.0;
-	
-	/**
-	 * The amount of levels we coarsen our domain to achieve the coarsest grid
-	 * for our calculation.
-	 * 
-	 * TODO Is this actually used?
-	 */
-	public int startOrder = 0;
-	
-	/**
-	 * The highest Diffusivity in our system.
-	 * 
-	 * TODO Is this actually used?
-	 */
-	public Double maxDiff = 0.0;
-	
-	/**
-	 * TODO Is this actually used, except for log messages?
-	 */
-	protected Double[] initialConcentration; // starting condition
-	
-	/** 
-	 * TODO Is this actually used?
-	 */
-	public boolean				isTimeDep = true;
-	
-	
 	public void init(Simulator aSimulator, XMLParser xmlRoot, Double agentTimeStep) 
 	{
 		super.init(aSimulator, xmlRoot, agentTimeStep);
 		
 		timeStep=agentTimeStep;
-		
-		nCoarseStep = xmlRoot.getParamInt("coarseStep");
-		vCycles = xmlRoot.getParamInt("nCycles");
-		nPreSteps = xmlRoot.getParamInt("preStep");
-		nPosSteps = xmlRoot.getParamInt("postStep");
 		
 		// Create the table of solute grids.
 		nSolute = _soluteList.length;
@@ -155,7 +98,6 @@ public class Solver_multigridTimeDependent extends DiffusionSolver
 		allReac = new SoluteGrid[nSolute];
 		allDiffReac = new SoluteGrid[nSolute];
 		// Initial concentration for each solute solved by this solver.
-		initialConcentration = new Double[nSolute];
 		
 		_domain = aSimulator.world.getDomain(xmlRoot.getAttribute("domain"));
 		_bLayer = new MultigridSoluteTimeDependent(_soluteList[0], "boundary layer");
@@ -168,19 +110,14 @@ public class Solver_multigridTimeDependent extends DiffusionSolver
 				Double sBulk = mySim.world.getMaxBulkValue(_soluteList[i].soluteIndex);
 				_solute[i] = new MultigridSoluteTimeDependent(_soluteList[i],
 						_diffusivity, _bLayer, mySim, sBulk, _reactions.size());
-				initialConcentration[i] =_solute[i].initialConc;
-				System.out.println("Multigrid solute initial concentration: "+
-							_solute[i].soluteName+" "+initialConcentration[i]);
 			} 
 			else 
 			{
 				_solute[i] = null;
-				initialConcentration[i] = 0.0;
 			}
 			LogFile.writeLogAlways("Sorted solute: "+i);
 		}
 		LogFile.writeLogAlways("AgentTimeStep:"+ aSimulator.agentTimeStep);
-		LogFile.writeLogAlways("deltat:"+dt);
 		/*
 		 * From this moment, nSolute is the number of solutes SOLVED by THIS
 		 * solver.
@@ -198,12 +135,8 @@ public class Solver_multigridTimeDependent extends DiffusionSolver
 		}
 		LogFile.writeLogAlways("sorting solutes");
 		/*
-		 * TODO A comment would be useful here!
-		 * This is done in several places:
-		 * - MultigridSoluteTimeDependent.MultigridSoluteTimeDependent(...) [twice]
-		 * - MultigridSoluteTimeDependent.implCrankNic(...)
-		 * - MultigridSoluteTimeDependent.computeStableDt(step)
-		 * Could we please make a separate method for it?
+		 * TODO do a seperate Method
+		 * computes the size of one voxel (real size / number of voxels)
 		 */
 		h = _solute[0]._referenceSystemSide;
 		h /= _solute[0].referenceIndex(_solute[0]._conc.getGridSizeI(),
@@ -255,20 +188,18 @@ public class Solver_multigridTimeDependent extends DiffusionSolver
 		{
 			Double D = _solute[i].realGrid.diffusivity;
 			/*
-			 * TODO Why not use something like 
-			 * int nX = _solute[i]._conc.getGridSizeI();
-			 * etc?
+			 * TODO sort out the padding-stuff in the Grids
+			 * and then use getGridSizeI() etc.
 			 */
-			Double nX = _solute[i]._conc.grid.length * h;
-			Double nY = _solute[i]._conc.grid[1].length * h;
-			Double nZ = _solute[i]._conc.grid[1][1].length * h;
+			Double nX = (_solute[i]._conc.grid.length-2) * h;
+			Double nY = (_solute[i]._conc.grid[1].length-2) * h;
+			Double nZ = (_solute[i]._conc.grid[1][1].length-2) * h;
 			
 			LogFile.writeLogAlways("D: "+D+" / nX: "+nX+" / nY: "+nY+" / nZ: "+nZ);
 			
 			/*
-			 * TODO Are you sure this is correct?
-			 * I'm not entirely sure what you're doing here.. some better
-			 * comments would help a lot.
+			 * TODO Redo the criterion (uptakestep instead of timestep?
+			 * 							and maxLength² instead of area transformed) 
 			 */
 			Double area = nX;
 			if ( nY == 1 ) //1D case
@@ -301,9 +232,9 @@ public class Solver_multigridTimeDependent extends DiffusionSolver
 		// Refresh then insert here the boundary layer and the diffusivity grid
 		_domain.refreshBioFilmGrids();
 
-		_bLayer.setFinest(_domain.getBoundaryLayer());
+		_bLayer.setGrid(_domain.getBoundaryLayer());
 		
-		_diffusivity.setFinest(_domain.getDiffusivity());
+		_diffusivity.setGrid(_domain.getDiffusivity());
 		
 		singleReac = new SoluteGrid[_reactions.size()];	
 		reacSum = new SoluteGrid[_reactions.size()];
@@ -318,7 +249,7 @@ public class Solver_multigridTimeDependent extends DiffusionSolver
 		// Prepare a soluteGrid with catalyst CONCENTRATION
 		for (int i = 0; i<_biomass.length; i++) 
 			{ _biomass[i].resetFinest(0d);
-			_reactions.get(i).fitAgentMassOnGrid(_biomass[i].getFinest()); }
+			_reactions.get(i).fitAgentMassOnGrid(_biomass[i].getGrid()); }
 		
 		for (int iSolute : _soluteIndex)
 			_solute[iSolute].readBulk();
@@ -402,13 +333,13 @@ public class Solver_multigridTimeDependent extends DiffusionSolver
 			for (int iSolute : _soluteIndex) // does one (uptake)-time-step for every solute in the domain
 			{
 				double solTime=0.0; //internal time for this solute
-				while ((solTime+_solute[iSolute].dt)<=(uptakeStep))
+				while ((solTime+_solute[iSolute].simTimeStep)<=(uptakeStep))
 				{
-					solTime=solTime+_solute[iSolute].dt;
+					solTime=solTime+_solute[iSolute].simTimeStep;
 						
 					LogFile.writeLogAlways("___tik-tok, what says the clock?: "+(solTime+time));
 					//apply the implicit solver to the concentration-domain
-					_solute[iSolute].implCrankNic(_solute[iSolute]._conc,_solute[iSolute].stepGrid, _solute[iSolute].dt, 
+					_solute[iSolute].implCrankNic(_solute[iSolute]._conc,_solute[iSolute].stepGrid, _solute[iSolute].simTimeStep, 
 								_bLayer, _diffusivity._conc.grid, true); 
 					
 					// TODO see, if stepGrid is still necessary

@@ -30,20 +30,18 @@ public class MultigridSoluteTimeDependent
 	 */
 	public int						Agarlayerheight = 0;
 	
-	public String                     soluteName;
+	public String                   soluteName;
 	
 	/**
-	 * TODO Some explanation of the differences between realGrid, _conc, and
-	 * stepGrid would be appreciated!
+	 * realGrid stores the actual, fine concentration-grid, while _conc is used
+	 * for inner computations (and some things, that are actually a bit of a stretch...)
 	 */
-	public SoluteGrid                 realGrid;
+	public SoluteGrid               realGrid;
 	
 	/**
 	 * The stable time-step according to the diffusivity of this solute.
-	 * 
-	 * TODO Can we give this a better name?
 	 */
-	public Double 							dt;					
+	public Double 					simTimeStep;					
 	
 	/**
 	 * Length or height of represented domain.
@@ -53,24 +51,33 @@ public class MultigridSoluteTimeDependent
 	protected Domain				_domain;
 	
 	/**
-	 * TODO sBulkMax doesn't seem to be used.
+	 * The Bulk-concentration of this Solute
 	 */
-	protected Double				sBulkMax, sBulk;
+	protected Double				sBulk;
+
 	
 	/**
-	 * TODO Is this actually used?
+	 * our computational grid. Is treated as the main grid during the diffusion-calculation
+	 * and also used for stuff like boundary-Layer-values and biomass-concentrations
 	 */
-	public SoluteGrid				_relDiff;
+	public SoluteGrid				_conc; 
 	
 	/**
-	 * TODO is _diffReac actually used?
+	 * stores the reaction rate inside the corresponding voxel
 	 */
-	public SoluteGrid				_conc, _reac, _diffReac, stepGrid;
+	public SoluteGrid				_reac; 
 	
 	/**
-	 * TODO Is this actually used?
+	 * not directly used, but since we use the same "updateReac", we need it
+	 * (shallow copies the steady-State anyway, so it should not take up more memory)
 	 */
-	public Double 					initialConc;
+	public SoluteGrid				_diffReac; 
+	
+	/**
+	 * the grid of future values. It is not necessary as of now, but would be required for any refinements
+	 * since you need the present concn as well as the future concn.
+	 */
+	public SoluteGrid				stepGrid;
 
 	/**
 	 * Concentration-Grid used for Computation
@@ -95,7 +102,6 @@ public class MultigridSoluteTimeDependent
 		
 		realGrid = aSolute;
 		soluteName = realGrid.gridName;
-		initialConc=realGrid.initialConc;
 		_i = realGrid.getGridSizeI();
 		_j = realGrid.getGridSizeJ();
 		_k = realGrid.getGridSizeK();
@@ -106,11 +112,7 @@ public class MultigridSoluteTimeDependent
 				this.Agarlayerheight = e.getAgarlayerHeightD();
 		
 		setReferenceSide();
-		
-		this.sBulkMax = sBulk;
 		this.sBulk = sBulk;
-		
-		_relDiff = relDiff._conc;
 			
 		Double r = _referenceSystemSide/referenceIndex(_i,_j,_k);
 
@@ -245,18 +247,39 @@ public class MultigridSoluteTimeDependent
 		}
 	}
 	
+	public double calcLocalDiffZ(double[][][] rd, int he, int wi, int de)
+	{
+		double relDiff = 0;
+			relDiff = realGrid.diffusivity*(rd[he][wi][de]+rd[he][wi][de+1])/2;
+		
+		return relDiff;
+	}
+	
+	public double calcLocalDiffY(double[][][] rd, int he, int wi, int de)
+	{
+		double relDiff = 0;
+			relDiff = realGrid.diffusivity*(rd[he][wi][de]+rd[he][wi+1][de])/2;
+		
+		return relDiff;
+	}
+	
+	public double calcLocalDiffX(double[][][] rd, int he, int wi, int de)
+	{
+		double relDiff = 0;
+			relDiff = realGrid.diffusivity*(rd[he][wi][de]+rd[he+1][wi][de])/2;
+		
+		return relDiff;
+	}
+	
 	/**
 	 * \brief Solves the Diffusion according to the implicit Crank-Nicolson 
 	 * Method.
 	 * 
 	 * The spatial Dimensions are independent and therefore solved separately,
 	 * breaking the domain down in 1D-parts. 2D Matrices are made up for
-	 * computation. These are tridiagonal Matrices that are solved with the a
-	 * matrix algorithm. This is basically the heart of our time-dependent
-	 * solver.
-	 * 
-	 * TODO What do you mean by "solving the matrix"??? Is this finding the
-	 * inverse of the matrix?
+	 * computation. These are tridiagonal Matrices that represent a set of linear equations
+	 * along with their corresponding vectors. The unknown vector represents
+	 * our future concentration and can be computed, because the rest of the system is known.
 	 * 
 	 * @param dt		the timestep
 	 * @param step		the value-receiving grid
@@ -268,19 +291,18 @@ public class MultigridSoluteTimeDependent
 			MultigridSoluteTimeDependent _bLayer, double[][][] rd, boolean refresh) 
 	{
 		/* 
-		 * TODO Why not use
-		 * int nI = conc.getGridSizeI();
-		 * etc?
+		 * gets the lengths of the grids without padding
 		 */
-		int nI = conc.grid.length-2;
-		int nJ = conc.grid[1].length-2;
-		int nK = conc.grid[1][1].length-2;
+		int nI = conc.grid.length - 2;
+		int nJ = conc.grid[1].length - 2;
+		int nK = conc.grid[1][1].length - 2;
 		
 		//refesh our padding properly
-		conc.refreshBoundary("conc");	
+		conc.refreshBoundary("conc");
 		
 		LogFile.writeLogAlways("nI: "+nI+" / nJ: "+nJ+" / nK: "+nK);
 		
+		// size of our finite elemets
 		double h = _referenceSystemSide/referenceIndex(nI,nJ,nK);
 		
 		// The constant term of our matrices
@@ -308,10 +330,13 @@ public class MultigridSoluteTimeDependent
 				else
 					nKi=nK+2;
 				
-				// TODO What are these? Comments please!
+				// our Matrix for t+1
 				double[][] A = new double[nKi][nKi];
+				// our Matrix for the current time
 				double[][] B = new double[nKi][nKi];
+				// B times the vector of concentrations
 				double[] d = new double[nKi];
+				// the vector of concentrations after the time-step
 				double[] t = new double[nKi];
 				
 				if ( nKi == 1 )
@@ -332,42 +357,26 @@ public class MultigridSoluteTimeDependent
 						if ( x == 0 || x == nI+1 || y == 0 || y == nJ+1 ) /*corrects z in edge-case*/ 
 							de = z+1;
 						else /*normal case*/ 
-							de = z;		/*and the other coordinates (for consistency)*/ he=x; wi=y;
-						/*
-						 * TODO This is extremely bad practice!!! It's very
-						 * easy for a reader to miss he and wi being set...
-						 * Are he and wi set always, or just if the else
-						 * condition is triggered? Change this here and below.
-						 */
+							de = z;	
+						he=x; wi=y;	/*and the other coordinates (for consistency)*/
 						
-						/* 
-						 * TODO this could be made a lot tidier and easier to
-						 * read if you made an external method... something
-						 * like
-						 * 
-						 * private Double calcFlux(int i1, int j1, ..., int k2)
-						 * {
-						 *     return realGrid.diffusivity*(rd[i1][j1][k1]+rd[i2][j2][k2])/2;
-						 * }
-						 * 
-						 * It would also benefit hugely from some better
-						 * commenting.
-						 */
+						// the upper corner
 						if ( z == 0 )
-							A[z][z]=(diag)+realGrid.diffusivity*((rd[he][wi][de+1]+rd[he][wi][de])/2);
+							// represents [2h²/dt] as diag and [calcLocalDiff] as D
+							A[z][z]= diag+(calcLocalDiffZ(rd, he, wi, de));
+						// the lower corner
 						if ( z == nKi-1 )
-							A[z][z]=(diag)+realGrid.diffusivity*((rd[he][wi][de-1]+rd[he][wi][de])/2);
-						// TODO Is this the diagonal (excluding corners)?
+							A[z][z]= diag+(calcLocalDiffZ(rd, he, wi, de-1));
+						// the main diagonal
 						if ( z != 0 && z != nKi-1 )
-							A[z][z]=(diag)+realGrid.diffusivity*((rd[he][wi][de-1]+rd[he][wi][de])/2)
-													+realGrid.diffusivity*((rd[he][wi][de+1]+rd[he][wi][de])/2);
+							A[z][z]= diag+(calcLocalDiffZ(rd, he, wi, de)+calcLocalDiffZ(rd, he, wi, de-1));
 						
-						// TODO Is this the lower diagonal?
-						if ( z > 0 )
-							A[z-1][z] = -realGrid.diffusivity*((rd[he][wi][de-1]+rd[he][wi][de])/2);
-						// TODO Is this the upper diagonal?
-						if ( z < nKi-1 )
-							A[z+1][z] = -realGrid.diffusivity*((rd[he][wi][de+1]+rd[he][wi][de])/2);
+						//set values left and right of the diagonal
+						if ( z > 0 ) // does not exist in upper corner
+							A[z-1][z] = -calcLocalDiffZ(rd, he, wi, de-1);
+						
+						if ( z < nKi-1 ) // does not exist in lower corner
+							A[z+1][z] = -calcLocalDiffZ(rd, he, wi, de);
 					}
 		
 					//set B (Matrix of t0)
@@ -378,20 +387,20 @@ public class MultigridSoluteTimeDependent
 						if (x==0 || x==nI+1 || y==0 || y==nJ+1) /*corrects z in edge-case*/ 
 							de=z+1;
 						else /*normal case*/ 
-							de=z;		/*and the other coordinates (for consistency)*/ he=x; wi=y;
+							de=z;
+						he=x; wi=y; /*and the other coordinates (for consistency)*/
 							
 						if (z==0)
-							B[z][z]=(diag)-realGrid.diffusivity*((rd[he][wi][de+1]+rd[he][wi][de])/2);
+							B[z][z]= diag-calcLocalDiffZ(rd, he, wi, de);
 						if (z==nKi-1)
-							B[z][z]=(diag)-realGrid.diffusivity*((rd[he][wi][de-1]+rd[he][wi][de])/2);
+							B[z][z]= diag-calcLocalDiffZ(rd, he, wi, de-1);
 						if (z!=0 && z!=nKi-1)
-							B[z][z]=(diag)-realGrid.diffusivity*((rd[he][wi][de-1]+rd[he][wi][de])/2)
-												-realGrid.diffusivity*((rd[he][wi][de+1]+rd[he][wi][de])/2);
+							B[z][z]= diag-calcLocalDiffZ(rd, he, wi, de)-calcLocalDiffZ(rd, he, wi, de-1);
 							
 						if (z>0)
-							B[z-1][z]=+realGrid.diffusivity*((rd[he][wi][de-1]+rd[he][wi][de])/2);
+							B[z-1][z]= calcLocalDiffZ(rd, he, wi, de-1);
 						if (z<nKi-1)
-							B[z+1][z]=+realGrid.diffusivity*((rd[he][wi][de+1]+rd[he][wi][de])/2);
+							B[z+1][z]= calcLocalDiffZ(rd, he, wi, de);
 					}
 		
 					//set d (Flux-Matrix B * concentration-vector d)
@@ -402,18 +411,20 @@ public class MultigridSoluteTimeDependent
 						if (x==0 || x==nI+1 || y==0 || y==nJ+1) /*corrects z in edge-case*/ 
 							de=z+1;
 						else /*normal case*/
-							de=z;		/*and the other coordinates (for consistency)*/ he=x; wi=y;
+							de=z;
+						he=x; wi=y; /*and the other coordinates (for consistency)*/ 
 						
-						// TODO What are we doing here?
 						Double sum = B[z][z]*conc.grid[he][wi][de];
+						// every points except lower corner
 						if ( z < nKi-1 )
 							sum += B[z+1][z]*conc.grid[he][wi][de+1];
+						// every point except upper corner
 						if ( z > 0 )
 							sum += B[z-1][z]*conc.grid[he][wi][de-1];
 						d[z] = sum;
 					}
 						
-					// Solves the tridiagonal Matrix (computes the concentration-vector of A)
+					// Solves the tridiagonal Matrix (computes the concentration-vector t, that corresponds to A)
 					pivotSolver(A, d, t);
 						
 					//assign Flux
@@ -424,7 +435,8 @@ public class MultigridSoluteTimeDependent
 						if (x==0 || x==nI+1 || y==0 || y==nJ+1) /*corrects z in edge-case*/ 
 							de=z+1;
 						else /*normal case*/ 
-							de=z;		/*and the other coordinates (for consistency)*/ he=x; wi=y;
+							de=z; 
+						he=x; wi=y; /*and the other coordinates (for consistency)*/
 						
 						Z[x][y][z]=t[z]-conc.grid[he][wi][de];
 					}
@@ -458,20 +470,20 @@ public class MultigridSoluteTimeDependent
 						if ( x == 0 || x == nI+1 || z == 0 || z == nK+1 ) /*corrects y in edge-case*/ 
 							wi = y+1;
 						else /*normal case*/ 
-							wi = y;		/*and the other coordinates (for consistency)*/ he=x; de=z;
+							wi = y;	 
+						he=x; de=z; /*and the other coordinates (for consistency)*/
 							
 						if (y==0)
-							A[y][y]=(diag)+realGrid.diffusivity*((rd[he][wi+1][de]+rd[he][wi][de])/2);
+							A[y][y]=diag+calcLocalDiffY(rd, he, wi, de);
 						if (y==nJi-1)
-							A[y][y]=(diag)+realGrid.diffusivity*((rd[he][wi-1][de]+rd[he][wi][de])/2);
+							A[y][y]=diag+calcLocalDiffY(rd, he, wi-1, de);
 						if (y!=0 && y!=nJi-1)
-							A[y][y]=(diag)+realGrid.diffusivity*((rd[he][wi-1][de]+rd[he][wi][de])/2)
-												+realGrid.diffusivity*((rd[he][wi+1][de]+rd[he][wi][de])/2);
+							A[y][y]=diag+calcLocalDiffY(rd, he, wi, de)+calcLocalDiffY(rd, he, wi-1, de);
 							
 						if (y>0)
-							A[y-1][y]=-realGrid.diffusivity*((rd[he][wi][de]+rd[he][wi-1][de])/2);
+							A[y-1][y]=-calcLocalDiffY(rd, he, wi-1, de);
 						if (y<nJi-1)
-							A[y+1][y]=-realGrid.diffusivity*((rd[he][wi][de]+rd[he][wi+1][de])/2);	
+							A[y+1][y]=-calcLocalDiffY(rd, he, wi, de);	
 					}
 					
 					//set B
@@ -482,20 +494,20 @@ public class MultigridSoluteTimeDependent
 						if (x==0 || x==nI+1 || z==0 || z==nK+1) /*corrects y in edge-case*/ 
 							wi=y+1;
 						else /*normal case*/ 
-							wi=y;		/*and the other coordinates (for consistency)*/ he=x; de=z;
+							wi=y; 
+						he=x; de=z; /*and the other coordinates (for consistency)*/
 							
 						if (y==0)
-							B[y][y]=(diag)-realGrid.diffusivity*((rd[he][wi+1][de]+rd[he][wi][de])/2);
+							B[y][y]=diag-calcLocalDiffY(rd, he, wi, de);
 						if (y==nJi-1)
-							B[y][y]=(diag)-realGrid.diffusivity*((rd[he][wi-1][de]+rd[he][wi][de])/2);
+							B[y][y]=diag-calcLocalDiffY(rd, he, wi-1, de);
 						if (y!=0 && y!=nJi-1)
-							B[y][y]=(diag)-realGrid.diffusivity*((rd[he][wi-1][de]+rd[he][wi][de])/2)
-												-realGrid.diffusivity*((rd[he][wi+1][de]+rd[he][wi][de])/2);
+							B[y][y]=diag-calcLocalDiffY(rd, he, wi, de)-calcLocalDiffY(rd, he, wi-1, de);
 							
 						if (y>0)
-							B[y-1][y]=+realGrid.diffusivity*((rd[he][wi][de]+rd[he][wi-1][de])/2);
+							B[y-1][y]=calcLocalDiffY(rd, he, wi-1, de);
 						if (y<nJi-1)
-							B[y+1][y]=+realGrid.diffusivity*((rd[he][wi][de]+rd[he][wi+1][de])/2);
+							B[y+1][y]=calcLocalDiffY(rd, he, wi, de);
 					}
 					
 					
@@ -507,7 +519,8 @@ public class MultigridSoluteTimeDependent
 						if (x==0 || x==nI+1 || z==0 || z==nK+1) /*corrects y in edge-case*/ 
 							wi=y+1;
 						else /*normal case*/ 
-							wi=y;		/*and the other coordinates (for consistency)*/ he=x; de=z;
+							wi=y;		 
+						he=x; de=z; /*and the other coordinates (for consistency)*/
 							
 						double sum=0.0;
 						sum=sum+B[y][y]*conc.grid[he][wi][de];
@@ -529,7 +542,8 @@ public class MultigridSoluteTimeDependent
 						if (x==0 || x==nI+1 || z==0 || z==nK+1) /*corrects y in edge-case*/ 
 							wi=y+1;
 						else /*normal case*/ 
-							wi=y;		/*and the other coordinates (for consistency)*/ he=x; de=z;
+							wi=y; 
+						he=x; de=z; /*and the other coordinates (for consistency)*/
 							
 						Y[x][y][z]=t[y]-conc.grid[he][wi][de];
 					}
@@ -566,17 +580,16 @@ public class MultigridSoluteTimeDependent
 								he=x;		/*and the other coordinates (for consistency)*/ wi=y; de=z;
 						
 							if (x==0)
-								A[x][x]=(diag)+realGrid.diffusivity*((rd[he+1][wi][de]+rd[he][wi][de])/2);
+								A[x][x]=diag+calcLocalDiffX(rd, he, wi, de);
 							if (x==nIi-1)
-								A[x][x]=(diag)+realGrid.diffusivity*((rd[he-1][wi][de]+rd[he][wi][de])/2);
+								A[x][x]=diag+calcLocalDiffX(rd, he-1, wi, de);
 							if (x!=0 && x!=nI+1)
-								A[x][x]=(diag)+realGrid.diffusivity*((rd[he-1][wi][de]+rd[he][wi][de])/2)
-													+realGrid.diffusivity*((rd[he+1][wi][de]+rd[he][wi][de])/2);
+								A[x][x]=diag+calcLocalDiffX(rd, he, wi, de)+calcLocalDiffX(rd, he-1, wi, de);
 							
 							if (x>0)
-								A[x-1][x]=-realGrid.diffusivity*((rd[he-1][wi][de]+rd[he][wi][de])/2);
+								A[x-1][x]=-calcLocalDiffX(rd, he-1, wi, de);
 							if (x<nIi-1)
-								A[x+1][x]=-realGrid.diffusivity*((rd[he+1][wi][de]+rd[he][wi][de])/2);
+								A[x+1][x]=-calcLocalDiffX(rd, he, wi, de);
 							
 						}
 						
@@ -588,20 +601,20 @@ public class MultigridSoluteTimeDependent
 							if (y==0 || y==nJ+1 || z==0 || z==nK+1) /*corrects x in edge-case*/ 
 								he=x+1;
 							else /*normal case*/ 
-								he=x;		/*and the other coordinates (for consistency)*/ wi=y; de=z;
+								he=x; 
+							wi=y; de=z; /*and the other coordinates (for consistency)*/
 							
 							if (x==0)
-								B[x][x]=(diag)-realGrid.diffusivity*((rd[he+1][wi][de]+rd[he][wi][de])/2);
+								B[x][x]=diag-calcLocalDiffX(rd, he, wi, de);
 							if (x==nI+1)
-								B[x][x]=(diag)-realGrid.diffusivity*((rd[he-1][wi][de]+rd[he][wi][de])/2);
+								B[x][x]=diag-calcLocalDiffX(rd, he-1, wi, de);
 							if (x!=0 && x!=nIi-1)
-								B[x][x]=(diag)-realGrid.diffusivity*((rd[he-1][wi][de]+rd[he][wi][de])/2)
-													-realGrid.diffusivity*((rd[he+1][wi][de]+rd[he][wi][de])/2);
+								B[x][x]=diag-calcLocalDiffX(rd, he, wi, de)-calcLocalDiffX(rd, he-1, wi, de);
 							
 							if (x>0)
-								B[x-1][x]=+realGrid.diffusivity*((rd[he-1][wi][de]+rd[he][wi][de])/2);
+								B[x-1][x]=calcLocalDiffX(rd, he-1, wi, de);
 							if (x<nIi-1)
-								B[x+1][x]=+realGrid.diffusivity*((rd[he+1][wi][de]+rd[he][wi][de])/2);
+								B[x+1][x]=calcLocalDiffX(rd, he, wi, de);
 							
 						}
 						
@@ -736,9 +749,8 @@ public class MultigridSoluteTimeDependent
 	 * Calculates a stable dt for the solute, according to the criterion for
 	 * our Crank-Nicolson-Method, which is dt<h²/D.
 	 * 
-	 * TODO Are we actually stepping here? This comment seems wrong to me.
-	 * @param step the amount of time we want to solve (so dt does not get
-	 * larger than our step).
+	 * @param step 			the amount of time we want to solve (so dt does not get
+	 * 						larger than our step).
 	 */
 	public void computeStableDt(double step) 
 	{
@@ -750,27 +762,25 @@ public class MultigridSoluteTimeDependent
 								_conc.getGridSizeK());
 			LogFile.writeLogAlways("h: "+h+" / diff: "+realGrid.diffusivity);
 			
-			// Our stepping-criterion.
-			//TODO Why is this multiplied by 0.2?
+			// Our stepping-criterion. The smaller timestep is chosen, because we
+			// do more than one dimension and need to choose a smaller timestep to keep it stable
 			Double maxTime = 0.2*h*h/realGrid.diffusivity; 
 			
 			// Computation of our stable timestep.
 			Double numOfSteps = Math.ceil(step/maxTime);
+			
 			// dt is computed to split the miniStep evenly.
-			dt = step/numOfSteps;
-			LogFile.writeLogAlways("dt: "+dt);
+			simTimeStep = step/numOfSteps;
+			LogFile.writeLogAlways("dt: "+simTimeStep);
 		}
 	}
 	
 	/**
 	 * does exactly what you would think
 	 * 
-	 * TODO Does it?! It just returns a grid, no mention of how this is the
-	 * finest...
-	 * 
-	 * @return the finest grid
+	 * @return the grid
 	 */
-	public SoluteGrid getFinest() 
+	public SoluteGrid getGrid() 
 	{
 		return _conc;
 	}
@@ -781,7 +791,7 @@ public class MultigridSoluteTimeDependent
 	 * 
 	 * @param aGrid the grid to be inserted 
 	 */
-	public void setFinest(SoluteGrid aGrid) 
+	public void setGrid(SoluteGrid aGrid) 
 	{
 		_conc = aGrid;
 	}
@@ -796,10 +806,7 @@ public class MultigridSoluteTimeDependent
 	}
 	
 	/**
-	 * TODO Is this comment correct? Looks like it returns the smallest
-	 * integer given as a parameter.
-	 * 
-	 * Returns the smallest dimension of the current grid.
+	 * Returns the smallest integer of the arguments
 	 * 
 	 * @param i the length of 1st dimension
 	 * @param j the length of 2nd dimension
@@ -808,7 +815,7 @@ public class MultigridSoluteTimeDependent
 	 */
 	public int referenceIndex(int i, int j, int k) 
 	{
-		if (_nK > 1)
+		if (k > 1)
 			return Math.min(i, Math.min(j,k));
 		return Math.min(i,j);
 	}

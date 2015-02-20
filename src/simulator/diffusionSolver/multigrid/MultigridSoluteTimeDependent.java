@@ -173,7 +173,7 @@ public class MultigridSoluteTimeDependent
 		/*
 		 * This part is basically doing the same as the Thomas algorithm for
 		 * tridiagonal matrices, but we don't want to solve the system right
-		 * away. Instead, we take the transformed matrix and do a second step,
+		 * away. Instead, we take the transformed matrix and do a second step
 		 * that is explained below.
 		 */
 		double[] u = new double[A.length-1];
@@ -295,6 +295,8 @@ public class MultigridSoluteTimeDependent
 	 * \brief Solves the Diffusion according to the implicit Crank-Nicolson 
 	 * Method.
 	 * 
+	 * TODO implement ADI-approach?
+	 * 
 	 * The spatial Dimensions are independent and therefore solved separately,
 	 * breaking the domain down in 1D-parts. 2D Matrices are made up for
 	 * computation. These are tridiagonal Matrices that represent a set of linear equations
@@ -306,9 +308,10 @@ public class MultigridSoluteTimeDependent
 	 * @param _bLayer 	the Boundary-Layer/Biomass-grid
 	 * @param rd    	the relative diffusivity-grid
 	 * @param refresh 	should the domain outside the bLayer be set to bulk constantly?
+	 * @param ADI 		should this behave like an ADI-Solver?
 	 */
 	public void implCrankNic(SoluteGrid conc, double dt, 
-			MultigridSoluteTimeDependent _bLayer, double[][][] rd, boolean refresh) 
+			MultigridSoluteTimeDependent _bLayer, double[][][] rd, boolean refresh, boolean ADI) 
 	{
 		/* 
 		 * gets the lengths of the grids without padding
@@ -326,12 +329,25 @@ public class MultigridSoluteTimeDependent
 		double h = _referenceSystemSide/referenceIndex(nI,nJ,nK);
 		
 		// The constant term of our matrices
-		double diag = 2*h*h/dt;
+		double diag = 0.0;
+		
+		/**
+		 * if we have ADI-behaviour, our directions get only a fraction of the
+		 * timestep and our Flux gets added after every direction and before the next
+		 * direction is done
+		 */
+		if (ADI)
+			diag = (2/3)*h*h/dt; // timestep gets split for the dimensions
+		/**
+		 * if not, we do the Flux for all directions and then add them on the grid before
+		 * our timestep at the same time
+		 */
+		else
+			diag = 2*h*h/dt;
 		
 		LogFile.writeLogAlways("h: "+h+" / dt: "+dt+" / const: "+diag);
 			
 		// Create the flux grids.
-		double[][][] XYZ = new double [nI+2][nJ+2][nK+2];
 		double[][][] X = new double[nI+2][nJ+2][nK+2];
 		double[][][] Y = new double[nI+2][nJ+2][nK+2];
 		double[][][] Z = new double[nI+2][nJ+2][nK+2];
@@ -350,11 +366,11 @@ public class MultigridSoluteTimeDependent
 				else
 					nKi=nK+2;
 				
-				// our Matrix for t+1
+				// our Matrix for t+
 				double[][] A = new double[nKi][nKi];
 				// our Matrix for the current time
 				double[][] B = new double[nKi][nKi];
-				// B times the vector of concentrations
+				// B times the vector of current concentrations
 				double[] d = new double[nKi];
 				// the vector of concentrations after the time-step
 				double[] t = new double[nKi];
@@ -462,6 +478,22 @@ public class MultigridSoluteTimeDependent
 					}
 				}
 			}
+		if (ADI)
+			for (int x=0;x<nI+2;x++)
+				for (int y=0;y<nJ+2;y++)
+					for (int z=0;z<nK+2;z++)
+					{
+						// yep, it's ugly, but once again, we don't want the corners 
+						// (they should be 0 anyway, but let's better be safe)
+						if (z==0 || y==0 || x==0 || z==nK+1 || y==nJ+1 || x==nI+1);
+						else
+						{
+							if (_bLayer._conc.grid[x][y][z]>BLTHRESH || !refresh)
+								conc.grid[x][y][z]=conc.grid[x][y][z]+Z[x][y][z];
+							else
+								conc.grid[x][y][z]=sBulk; // this is disabled if refresh is false
+						}
+					}
 		
 		//solve in Y
 		for (int x=0;x<nI+2;x++)
@@ -569,6 +601,24 @@ public class MultigridSoluteTimeDependent
 					}
 				}
 			}	
+		
+		if (ADI)
+			//put them in the grid
+			for (int x=0;x<nI+2;x++)
+				for (int y=0;y<nJ+2;y++)
+					for (int z=0;z<nK+2;z++)
+					{
+						// yep, it's ugly, but once again, we don't want the corners 
+						// (they should be 0 anyway, but let's better be safe)
+						if (z==0 || y==0 || x==0 || z==nK+1 || y==nJ+1 || x==nI+1);
+						else
+						{
+							if (_bLayer._conc.grid[x][y][z]>BLTHRESH || !refresh)
+								conc.grid[x][y][z]=conc.grid[x][y][z]+Y[x][y][z];
+							else
+								conc.grid[x][y][z]=sBulk; // this is disabled if refresh is false
+						}
+					}
 		
 		//solve in X
 		for (int y=0;y<nJ+2;y++)
@@ -678,29 +728,41 @@ public class MultigridSoluteTimeDependent
 					}
 				}
 		
-		//sum the fluxes up
-		for (int x=0;x<nI+2;x++)
-			for (int y=0;y<nJ+2;y++)
-				for (int z=0;z<nK+2;z++)
-					XYZ[x][y][z]=(X[x][y][z]+Y[x][y][z]+Z[x][y][z]);
-		
-		//put them in the stepgrid
-		
-		for (int x=0;x<nI+2;x++)
-			for (int y=0;y<nJ+2;y++)
-				for (int z=0;z<nK+2;z++)
-				{
-					// yep, it's ugly, but once again, we don't want the corners 
-					// (they should be 0 anyway, but let's better be safe)
-					if (z==0 || y==0 || x==0 || z==nK+1 || y==nJ+1 || x==nI+1);
-					else
+		if (ADI)
+			//put them in the grid
+			for (int x=0;x<nI+2;x++)
+				for (int y=0;y<nJ+2;y++)
+					for (int z=0;z<nK+2;z++)
 					{
-						if (_bLayer._conc.grid[x][y][z]>BLTHRESH || !refresh)
-							conc.grid[x][y][z]=conc.grid[x][y][z]+XYZ[x][y][z];
+						// yep, it's ugly, but once again, we don't want the corners 
+						// (they should be 0 anyway, but let's better be safe)
+						if (z==0 || y==0 || x==0 || z==nK+1 || y==nJ+1 || x==nI+1);
 						else
-							conc.grid[x][y][z]=sBulk; // this is disabled if refresh is false
+						{
+							if (_bLayer._conc.grid[x][y][z]>BLTHRESH || !refresh)
+								conc.grid[x][y][z]=conc.grid[x][y][z]+X[x][y][z];
+							else
+								conc.grid[x][y][z]=sBulk; // this is disabled if refresh is false
+						}
 					}
-				}
+		
+		if (!ADI)
+			//put them in the grid
+			for (int x=0;x<nI+2;x++)
+				for (int y=0;y<nJ+2;y++)
+					for (int z=0;z<nK+2;z++)
+					{
+						// yep, it's ugly, but once again, we don't want the corners 
+						// (they should be 0 anyway, but let's better be safe)
+						if (z==0 || y==0 || x==0 || z==nK+1 || y==nJ+1 || x==nI+1);
+						else
+						{
+							if (_bLayer._conc.grid[x][y][z]>BLTHRESH || !refresh)
+								conc.grid[x][y][z]=conc.grid[x][y][z]+X[x][y][z]+Y[x][y][z]+Z[x][y][z];
+							else
+								conc.grid[x][y][z]=sBulk; // this is disabled if refresh is false
+						}
+					}
 		
 		conc.refreshBoundary("conc");
 	}
@@ -774,8 +836,9 @@ public class MultigridSoluteTimeDependent
 	 * 
 	 * @param step 			the amount of time we want to solve (so dt does not get
 	 * 						larger than our step).
+	 * @param ADI			determines if this should behave like ADI or Flux-Solver
 	 */
-	public void computeStableDt(double step) 
+	public void computeStableDt(double step, boolean ADI) 
 	{
 		{
 			// Calculate our fine spatial resolution.
@@ -785,9 +848,14 @@ public class MultigridSoluteTimeDependent
 								_conc.getGridSizeK());
 			LogFile.writeLogAlways("h: "+h+" / diff: "+realGrid.diffusivity);
 			
+			Double maxTime = 0.0;
+			
+			if (ADI)
+				maxTime = 2.99*h*h/realGrid.diffusivity;
 			// Our stepping-criterion. The smaller timestep is chosen, because we
 			// do more than one dimension and need to choose a smaller timestep to keep it stable
-			Double maxTime = 0.2*h*h/realGrid.diffusivity; 
+			else
+				maxTime = 0.2*h*h/realGrid.diffusivity; 
 			
 			// Computation of our stable timestep.
 			Double numOfSteps = Math.ceil(step/maxTime);

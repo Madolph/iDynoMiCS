@@ -64,6 +64,11 @@ public class Solver_multigridTimeDependent extends DiffusionSolver
 	 * the smaller timestep, that determines the uptake-frequency TODO make it easily adjustable
 	 */
 	public Double 								uptakeStep = 0.01;
+	
+	/**
+	 * the solver can also be used with ADI-behaviour
+	 */
+	public boolean 								ADI = false;
 
 	/**
 	 * Commonly used counter for nSolutes.
@@ -306,18 +311,17 @@ public class Solver_multigridTimeDependent extends DiffusionSolver
 		
 		// sets the dt for every solute independently
 		for (int iSolute : _soluteIndex)
-			_solute[iSolute].computeStableDt(CurrentUptakeStep);
+			_solute[iSolute].computeStableDt(CurrentUptakeStep, ADI);
 		
 		// execute the actual solver
 		while (!lastStep) //handles the uptake-timescale
 		{
-			LogFile.writeLogAlways("time: "+time);
 			if ((timeStep-time)<=(CurrentUptakeStep)) // in case it is the last step, the simulated time is scaled down
 			{
 				CurrentUptakeStep=timeStep-time;
 				
 				for (int iSolute : _soluteIndex) //adjust dt to the new uptakeStep (smaller than before)
-					_solute[iSolute].computeStableDt(CurrentUptakeStep);
+					_solute[iSolute].computeStableDt(CurrentUptakeStep, ADI);
 				
 				lastStep=true;
 			}
@@ -330,10 +334,10 @@ public class Solver_multigridTimeDependent extends DiffusionSolver
 				{
 					solTime=solTime+_solute[iSolute].simTimeStep;
 						
-					LogFile.writeLogAlways("___tik-tok, what says the clock?: "+(solTime+time));
+					LogFile.writeLogAlways("___current time: "+(solTime+time));
 					//apply the implicit solver to the concentration-domain
 					_solute[iSolute].implCrankNic(_solute[iSolute]._conc, _solute[iSolute].simTimeStep, 
-								_bLayer, _diffusivity._conc.grid, true);
+								_bLayer, _diffusivity._conc.grid, true, ADI);
 				}
 				_solute[iSolute].applyComputation();
 			}
@@ -346,6 +350,7 @@ public class Solver_multigridTimeDependent extends DiffusionSolver
 				 * its own biomass, reldiff etc. However, he has to use our computed grids anyway,
 				 * so we just cram our values into it.
 				 */
+				LogFile.writeLogAlways("___solving fast solutes now___");
 				
 				// set boundary-layer
 				steadyStateSolver._bLayer._conc[steadyStateSolver.maxOrder-1].grid=_bLayer._conc.grid;
@@ -358,9 +363,6 @@ public class Solver_multigridTimeDependent extends DiffusionSolver
 					// set the relative diffusivity
 					steadyStateSolver._diffusivity._conc[steadyStateSolver.maxOrder-1].grid=_diffusivity._conc.grid;
 					steadyStateSolver._diffusivity.restrictToCoarsest("relDiff");
-					
-					for (int p=0;p<_solute[i]._conc.grid.length;p++)
-						LogFile.writeLogAlways("solute "+i+": "+_solute[i]._conc.grid[p][1][1]);
 				}
 				// set biomass-grids
 				for (int i=0;i<nReaction;i++)
@@ -374,6 +376,8 @@ public class Solver_multigridTimeDependent extends DiffusionSolver
 			//our diffusion is now done
 			
 			// do uptake
+			LogFile.writeLogAlways("___computing uptake___");
+			
 			updateReacRateAndDiffRate(); //adjust parameters to new conditions
 			for (int iSolute : _soluteIndex)
 				for (int i=0;i<xFine;i++)

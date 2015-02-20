@@ -33,10 +33,10 @@
 		<param name="randomSeed">42</param>
 		
 		<!-- this specifies how often the output files should be written -->
-		<param name="outputPeriod" unit="hour">1</param>
+		<param name="outputPeriod" unit="hour">0.1</param>
 
 		<!-- Specifies whether the simulation should check as to whether a new release is available -->
-		<param name="checkForReleaseUpdate">true</param>
+		<param name="checkForReleaseUpdate">false</param>
 
 		<!-- iDynoMiCS may use a fixed or an adaptive global timestep. If 'adaptive' is true,
 			then the three 'timeStep***' parameters control the initial, minimum, and maximum
@@ -46,10 +46,10 @@
 			simulation will end. -->
 		<timeStep>
 			<param name="adaptive">false</param>
-			<param name="timeStepIni" unit="hour">0.5</param>
-			<param name="timeStepMin" unit="hour">0.05</param>
-			<param name="timeStepMax" unit="hour">1</param>
-			<param name="endOfSimulation" unit="hour">4</param>
+			<param name="timeStepIni" unit="hour">0.1</param>
+			<param name="timeStepMin" unit="hour">0.1</param>
+			<param name="timeStepMax" unit="hour">0.1</param>
+			<param name="endOfSimulation" unit="hour">5.0</param>
 		</timeStep>
 
 		<!-- Attachment scenario - can be 'onetime', where the cells attach to the substratum initially (as in traditional iDynoMiCS)		
@@ -57,7 +57,7 @@
 		<param name="attachment">onetime</param>
 
 		<!-- The AGENTTIMESTEP which should always be EQUAL or LOWER than the global time step -->
-		<param name="agentTimeStep" unit="hour">0.05</param>
+		<param name="agentTimeStep" unit="hour">0.1</param>
 		<!-- Invasion/Competition simulation. Set to true if the simulation should stop once there is only one species left in the system -->
         <param name="invComp">false</param> 
 
@@ -76,7 +76,7 @@
 
 	<input>
 		<param name="useAgentFile">false</param>
-		<param name="inputAgentFileURL">agent_State(last).xml</param>
+		<param name="inputAgentFileURL">monolayer_3D.xml</param>
 		<param name="useBulkFile">false</param>
 		<param name="inputBulkFileURL">env_Sum(last).xml</param>
 	</input>
@@ -99,8 +99,13 @@
 	-->
 
 	<solute domain="MyBiofilm" name="MyCOD">
-		<param name="diffusivity" unit="m2.day-1">0.001</param>
+		<param name="diffusivity" unit="m2.second-1">1e-11</param>
 	</solute>
+
+	<solute domain="MyBiofilm" name="MyC4">
+		<param name="diffusivity" unit="m2.second-1">1e-10</param>
+	</solute>	
+
 	<solute domain="MyBiofilm" name="pressure">
 		<param name="diffusivity" unit="m2.day-1">1</param>
 	</solute>
@@ -154,9 +159,15 @@
 			-->
 
 			<solute name="MyCOD">
-				<param name="Sbulk" unit="g.L-1">0.001</param>
-				<param name="Sin" unit="g.L-1">10e-3</param>
+				<param name="Sbulk" unit="g.L-1">0.1</param>
+				<param name="Sin" unit="g.L-1">0</param>
 			</solute>
+
+			<solute name="MyC4">
+				<param name="Sbulk" unit="g.L-1">1.0</param>
+				<param name="Sin" unit="g.L-1">0</param>
+			</solute>
+
 			<solute name="pressure">
 				<param name="Sbulk" unit="g.L-1">0</param>
 				<param name="Sin" unit="g.L-1">0</param>
@@ -176,7 +187,7 @@
 				global domain size in a direction is the number of elements times the resolution:
 					nI*resolution
 			-->
-			<grid nDim="2" nI="32" nJ="8" nK="1"/>
+			<grid nDim="3" nI="16" nJ="16" nK="16"/>
 			<param name="resolution" unit="um">8</param>
 
 			<!-- 'boundaryLayer' sets the distance above the biofilm/liquid interface that the
@@ -184,12 +195,12 @@
 				solute concentration will vary because of diffusion. The length of the boundaryLayer 
 				must be a multiple of the grid resolution
 				-->
-			<param name="boundaryLayer" unit="um">40</param>
+			<param name="boundaryLayer" unit="um">96</param>
 
 			<!-- The 'biofilmDiffusivity' sets the relative diffusivity of the biofilm compared
 				to water; because the biofilm is slightly more dense than water, the diffusivity
 				will be lower. -->
-			<param name="biofilmDiffusivity">0.8</param>
+			<param name="biofilmDiffusivity">1</param>
 
 			<!-- The 'specificArea' is the surface-to-volume ratio of the reactor or world system, and
 				is used to scale up the limited computation domain to the global scale. -->
@@ -243,7 +254,7 @@
 				<param name="activeForSolute">yes</param>
 				<param name="bulk">MyTank</param>
 				<shape class="Planar">
-					<param name="pointIn" x="33" y="0" z="0"/>
+					<param name="pointIn" x="16" y="0" z="0"/>
 					<param name="vectorOut" x="1" y="0" z="0"/>
 				</shape>
 			</boundaryCondition>
@@ -254,7 +265,7 @@
 					<param name="vectorOut" x="0" y="-1" z="0"/>
 				</shape>
 				<shape class="Planar">
-					<param name="pointIn" x="0" y="5" z="0"/>
+					<param name="pointIn" x="0" y="16" z="0"/>
 					<param name="vectorOut" x="0" y="1" z="0"/>
 				</shape>
 			</boundaryCondition>
@@ -265,7 +276,7 @@
 					<param name="vectorOut" x="0" y="0" z="-1"/>
 				</shape>
 				<shape class="Planar">
-					<param name="pointIn" x="0" y="0" z="1"/>
+					<param name="pointIn" x="0" y="0" z="16"/>
 					<param name="vectorOut" x="0" y="0" z="1"/>
 				</shape>
 			</boundaryCondition>
@@ -333,7 +344,18 @@
 			<param name="Ks" unit="g.L-1">2.5e-4</param>
 		</kineticFactor>
 		<yield>
-			<param name="MyCOD" unit="g.g-1">-3.0</param>
+			<param name="MyCOD" unit="g.g-1">-1.0</param>
+			<param name="biomass" unit="g.g-1">1.0</param>
+		</yield>
+	</reaction>
+
+	<reaction catalyzedBy="biomass" class="ReactionFactor" name="MyGrowthCustom">
+		<param name="muMax" unit="hour-1">0.7</param>
+		<kineticFactor class="MonodKinetic" solute="MyC4">
+			<param name="Ks" unit="g.L-1">2.5e-4</param>
+		</kineticFactor>
+		<yield>
+			<param name="MyC4" unit="g.g-1">-1.0</param>
 			<param name="biomass" unit="g.g-1">1.0</param>
 		</yield>
 	</reaction>
@@ -353,14 +375,15 @@
 		<reaction> mark-ups should include ALL reactions that affect solute concentrations
 		in the domain through production or consumption. -->
 
-	<solver class="Solver_FFT" name="solutes" domain="MyBiofilm">
+	<solver class="Solver_multigridTimeDependent" name="solutes" domain="MyBiofilm">
 		<param name="active">true</param>
-		<param name="preStep">150</param>
-		<param name="postStep">150</param>
-		<param name="coarseStep">1500</param>
+		<param name="preStep">100</param>
+		<param name="postStep">100</param>
+		<param name="coarseStep">400</param>
 		<param name="nCycles">5</param>
 
 		<reaction name="MyGrowthHeterotrophs"/>
+		<reaction name="MyGrowthCustom"/>
 	</solver>
 
 	<!-- The 'Solver_pressure' solver is used to compute the pressure field in the biofilm
@@ -407,7 +430,7 @@
 		-->
 		<detachment class="DS_Quadratic">
 			<param name="kDet" unit="um-1.hour-1">5e-5</param>
-			<param name="maxTh" unit="um">200</param>
+			<param name="maxTh" unit="um">48</param>
 		</detachment>
 
 		<!-- The 'sloughDetachedBiomass' parameter sets whether biomass that is no longer
@@ -537,10 +560,10 @@
 
 		<reaction name="MyGrowthHeterotrophs" status="active"/>
 
-		<initArea number="1">
+		<initArea number="10">
 			<param name="birthday" unit="hour">0</param>
-			<coordinates x="0" y="0" z="0"/>
-			<coordinates x="8" y="40" z="0"/>
+			<coordinates x="0" y="0" z="4"/>
+			<coordinates x="104" y="104" z="4"/>
 		</initArea>
 	</species>
 

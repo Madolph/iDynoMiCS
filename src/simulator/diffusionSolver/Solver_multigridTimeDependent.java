@@ -59,6 +59,11 @@ public class Solver_multigridTimeDependent extends DiffusionSolver
 	 * The agent-timestep.
 	 */
 	public Double 								timeStep;
+	
+	/**
+	 * the smaller timestep, that determines the uptake-frequency TODO make it easily adjustable
+	 */
+	public Double 								uptakeStep = 0.01;
 
 	/**
 	 * Commonly used counter for nSolutes.
@@ -197,24 +202,11 @@ public class Solver_multigridTimeDependent extends DiffusionSolver
 			
 			LogFile.writeLogAlways("D: "+D+" / nX: "+nX+" / nY: "+nY+" / nZ: "+nZ);
 			
-			/*
-			 * TODO Redo the criterion (uptakestep instead of timestep?
-			 * 							and maxLength² instead of area transformed) 
-			 */
-			Double area = nX;
-			if ( nY == 1 ) //1D case
-				area *= area;
-			else //2D case
-				area *= nY;
-			if (nZ==1); //2D case already done
-			else //3D case
-			{
-				area *= nZ;
-				area = Math.cbrt(area);
-				area *= area;
-			}
+			Double maxArea = Math.max(nX, nY);
+			maxArea = Math.max(maxArea, nZ);
+			maxArea = maxArea*maxArea;
 			
-			if ( (timeStep*D) >= area ) //timeStep or uptakeStep?
+			if ( (timeStep*D) >= maxArea ) //timeStep or uptakeStep?
 			{
 				// Terminate solute from soluteIndex.
 				cutSolutes.add(_soluteIndex.remove(i - indexShift));
@@ -303,9 +295,10 @@ public class Solver_multigridTimeDependent extends DiffusionSolver
 		int xFine=_solute[0]._conc.grid.length;
 		int yFine=_solute[0]._conc.grid[1].length;
 		int zFine=_solute[0]._conc.grid[1][1].length;
-				
-		double uptakeStep = 0.01; //sets the minimal uptake-period
-				
+		
+		// set the uptakeStep back to default
+		double CurrentUptakeStep = uptakeStep;
+		
 		double time=0.0; //counts the actual time that has been solved already
 		boolean lastStep=false; //gets set to true when last step is reached and differs behaviour
 		double soluteDiff; //the difference in solute made by uptake
@@ -313,18 +306,18 @@ public class Solver_multigridTimeDependent extends DiffusionSolver
 		
 		// sets the dt for every solute independently
 		for (int iSolute : _soluteIndex)
-			_solute[iSolute].computeStableDt(uptakeStep);
+			_solute[iSolute].computeStableDt(CurrentUptakeStep);
 		
 		// execute the actual solver
 		while (!lastStep) //handles the uptake-timescale
 		{
 			LogFile.writeLogAlways("time: "+time);
-			if ((timeStep-time)<=(uptakeStep)) // in case it is the last step, the simulated time is scaled down
+			if ((timeStep-time)<=(CurrentUptakeStep)) // in case it is the last step, the simulated time is scaled down
 			{
-				uptakeStep=timeStep-time;
+				CurrentUptakeStep=timeStep-time;
 				
 				for (int iSolute : _soluteIndex) //adjust dt to the new uptakeStep (smaller than before)
-					_solute[iSolute].computeStableDt(uptakeStep);
+					_solute[iSolute].computeStableDt(CurrentUptakeStep);
 				
 				lastStep=true;
 			}
@@ -333,18 +326,14 @@ public class Solver_multigridTimeDependent extends DiffusionSolver
 			for (int iSolute : _soluteIndex) // does one (uptake)-time-step for every solute in the domain
 			{
 				double solTime=0.0; //internal time for this solute
-				while ((solTime+_solute[iSolute].simTimeStep)<=(uptakeStep))
+				while ((solTime+_solute[iSolute].simTimeStep)<=(CurrentUptakeStep))
 				{
 					solTime=solTime+_solute[iSolute].simTimeStep;
 						
 					LogFile.writeLogAlways("___tik-tok, what says the clock?: "+(solTime+time));
 					//apply the implicit solver to the concentration-domain
-					_solute[iSolute].implCrankNic(_solute[iSolute]._conc,_solute[iSolute].stepGrid, _solute[iSolute].simTimeStep, 
-								_bLayer, _diffusivity._conc.grid, true); 
-					
-					// TODO see, if stepGrid is still necessary
-					_solute[iSolute].stepToConc();
-							
+					_solute[iSolute].implCrankNic(_solute[iSolute]._conc, _solute[iSolute].simTimeStep, 
+								_bLayer, _diffusivity._conc.grid, true);
 				}
 				_solute[iSolute].applyComputation();
 			}
@@ -391,12 +380,18 @@ public class Solver_multigridTimeDependent extends DiffusionSolver
 					for (int j=0;j<yFine;j++)
 						for (int k=0;k<zFine;k++)
 						{
-							soluteDiff = _solute[iSolute]._reac.grid[i][j][k]*uptakeStep; //compute change in solute
+							soluteDiff = _solute[iSolute]._reac.grid[i][j][k]*CurrentUptakeStep; //compute change in solute
 							if ( -soluteDiff > _solute[iSolute]._conc.grid[i][j][k] ) //check for unreasonable uptake
 							{
-								//alterated computation of the uptake to avoid linearization-errors
-								// TODO: does not just handle one reaction and needs to be remade, !IF! the
-								// usual reac is really non-functional
+								LogFile.writeLogAlways("Solute "+iSolute+" is getting fudged");
+								/*
+								 * alterated computation of the uptake to avoid linearization-errors
+								 * 
+								 * the rate of consumption varies largely for small concentrations 
+								 * and would rapidly deplete even during one uptake-step
+								 * therefore, we assume exponential decay of consumption by applying 
+								 * the fudgefactor
+								 */
 								fudgeFactor = 0.0;
 								
 								for (int  iReac=0;iReac<_reactions.size();iReac++)
@@ -406,15 +401,24 @@ public class Solver_multigridTimeDependent extends DiffusionSolver
 											singleReac[iReac].grid[i][j][k];
 								
 								fudgeFactor /= _solute[iSolute]._conc.grid[i][j][k];
-								fudgeFactor *= uptakeStep;
+								fudgeFactor *= CurrentUptakeStep;
 								//rescale the reaction to fit the new uptake
 								Double oldReac = _solute[iSolute]._reac.grid[i][j][k];
 								_solute[iSolute]._reac.grid[i][j][k] = 
-										Math.expm1(fudgeFactor)*_solute[iSolute]._conc.grid[i][j][k]/uptakeStep;
+										Math.expm1(fudgeFactor)*_solute[iSolute]._conc.grid[i][j][k]/CurrentUptakeStep;
 								
-								// TODO do not rescale every reaction (some may be unaffected)
 								for (int  iReac=0;iReac<_reactions.size();iReac++)
-									singleReac[iReac].grid[i][j][k] *= oldReac/_solute[iSolute]._reac.grid[i][j][k];
+	
+									// Only do this to reactions that consume this solute
+									if (_reactions.get(iReac).getSoluteYield()[iSolute] < 0.0)
+									{
+										singleReac[iReac].grid[i][j][k] *= oldReac/_solute[iSolute]._reac.grid[i][j][k];
+										LogFile.writeLogAlways("Reaction '"+_reactions.get(iReac).reactionName+
+																"' is getting rescaled");
+									}
+									
+								
+									
 								if (_soluteIndex.contains(iSolute)) // we do no uptake for steadyState-Solutes
 									_solute[iSolute]._conc.grid[i][j][k] *= Math.exp(fudgeFactor);
 								
@@ -424,7 +428,7 @@ public class Solver_multigridTimeDependent extends DiffusionSolver
 									_solute[iSolute]._conc.grid[i][j][k]+= soluteDiff; // add/subtract our reacted substrate
 						}
 			// move our time-counter forward
-			time=time+uptakeStep;
+			time=time+CurrentUptakeStep;
 			// finish the uptakeStep by setting our realGrid
 			for (int i=0;i<nSolute;i++)
 				_solute[i].applyComputation(); //needs to be set, because steadyState always solves from realGrid

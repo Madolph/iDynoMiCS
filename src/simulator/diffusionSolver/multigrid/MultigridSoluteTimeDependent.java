@@ -160,6 +160,155 @@ public class MultigridSoluteTimeDependent
 	}
 	
 	/**
+	 * builds a dummy matrix-system that is used for the test of free-range implicit-methods
+	 * and solvers in a controlled environment.
+	 * 
+	 * @param size		the dimensions of your vectors and matrices
+	 * @param dt		the timestep
+	 * @param h			the resolution (will be made to a constant together with dt)
+	 * @param D			the Diffusivity (variation of the constant and side-diagonal)
+	 * @param thres		the height at which the step-function changes the concentration
+	 * @param Thomas	determines, wheather the Thomas-Algorithm is used
+	 * @param useVec	uses the vector "vec" if this is true, instead of creating its own
+	 * @param vec		the transformed vector that can be used as an initial condition
+	 */
+	public void buildMatrixSystem(int size, double dt, double h, double D, int thres, double top, 
+			double bottom, boolean Thomas, boolean useVec, double[] vec)
+	{
+		double diag = (2*h*h)/dt;
+		
+		LogFile.writeLogAlways("diag: "+diag);
+		LogFile.writeLogAlways("D: "+D);
+		
+		double[] c = new double[size];
+		
+		if (useVec)
+			c = vec;
+		else
+		{
+			for (int i=0;i<thres;i++)
+				c[i]=top;
+		
+			for (int i=thres;i<c.length;i++)
+				c[i]=bottom;
+		}
+			
+		
+		double[][] A = new double[size][size];
+		double[][] B = new double[size][size];
+		double[] d = new double[size];
+		
+		for ( int i = 0; i < size; i++ )
+		{
+			if ( i == 0 )
+				A[i][i]= diag+D;
+			
+			if ( i == size-1 )
+				A[i][i]= diag+D;
+			
+			if ( i != 0 && i != size-1 )
+				A[i][i]= diag+(2*D);
+			
+			if ( i > 0 ) 
+				A[i-1][i] = -D;
+			
+			if ( i < size-1 )
+				A[i+1][i] = -D;
+		}
+
+		for ( int i = 0; i < size ; i++ )
+		{
+				
+			if ( i == 0 )
+				B[i][i]= diag-D;
+			
+			if ( i == size-1 )
+				B[i][i]= diag-D;
+			
+			if ( i != 0 && i != size-1)
+				B[i][i]= diag-(2*D);
+				
+			if ( i > 0 )
+				B[i-1][i]= D;
+			
+			if ( i < size-1)
+				B[i+1][i]= D;
+		}
+
+		for ( int i = 0; i < size; i++ )
+		{
+			Double sum = B[i][i]*c[i];
+			// every points except lower corner
+			if ( i < size-1 )
+				sum += B[i+1][i]*c[i+1];
+			// every point except upper corner
+			if ( i > 0 )
+				sum += B[i-1][i]*c[i-1];
+			d[i] = sum;
+		}
+		
+		/*
+		 *  compute the result-vector
+		 *  thomas and pivot produce equal results. Until we know
+		 *  which one is better, we keep both
+		 */
+		if (Thomas)
+		{
+			ThomasAlgorithm(A, d, c);
+			LogFile.writeLogAlways("using Thomas");
+		}
+		else
+		{
+			pivotSolver(A, d, c);
+			LogFile.writeLogAlways("using Pivot");
+		}
+		
+		// print the result
+		for (int i=0;i<c.length;i++)
+		{
+			vec[i] = c[i];
+			LogFile.writeLogAlways("result: "+c[i]);
+		}
+	}
+	
+	/**
+	 * uses the Thomas-Algorithm to solve a set of linear
+	 * equations displayed by a matrix-equation. Is equal to the
+	 * pivot-solver but uses a different computations
+	 * 
+	 * @param A	The Matrix
+	 * @param d	The associated vector
+	 * @param t	The result-vector
+	 */
+	public void ThomasAlgorithm(double[][] A, double[]d, double[]t)
+	{
+		if (A.length != A[1].length)
+			LogFile.writeLogAlways("Na-ahh, wrong matrix");
+		
+		if (A.length != d.length)
+			LogFile.writeLogAlways("you kidding me? d doesn't fit, mate");
+		
+		if (d.length != t.length)
+			LogFile.writeLogAlways("if the vectors could have the same length, that would help...");
+		
+		double[] cX = new double[A.length-1];
+		
+		cX[0]=A[1][0]/A[0][0];
+		for (int i=1;i<cX.length;i++)
+			cX[i]=A[i+1][i]/(A[i][i]-(A[i][i-1]*cX[i-1]));
+		
+		double[] dX = new double[A.length];
+		dX[0]=d[0]/A[0][0];
+		for (int i=1;i<dX.length;i++)
+			dX[i]=(d[i]-(A[i-1][i]*dX[i-1]))
+				/(A[i][i]-(A[i-1][i]*cX[i-1]));
+		
+		t[t.length-1]=dX[t.length-1];
+		for (int i=t.length-2;i>=0;i--)
+			t[i]=dX[i]-(cX[i]*t[i+1]);
+	}
+	
+	/**
 	 * Transforms a Matrix A (A*t=d) into an identity matrix. This gives a pattern for the
 	 * righthand-side, that we can solve to acquire a solution.
 	 * 
@@ -864,6 +1013,24 @@ public class MultigridSoluteTimeDependent
 			simTimeStep = step/numOfSteps;
 			LogFile.writeLogAlways("dt: "+simTimeStep);
 		}
+		
+		/**
+		 * just a convenient place to test the matrix-algorithms)
+		 * comment this out or delete it when we are done testing the implicit scheme
+		 */
+		LogFile.writeLogAlways("testing Algorithms now");
+		
+		int size = 1000;
+		
+		double[] c= new double [size];
+		
+		double dt=3.0;
+		double h=8.0;
+		double D=670.0;
+		
+		buildMatrixSystem(size, dt, h, D, size/2, 10.0, 0.0, false, false, c);
+		for (double t=1.0;t<=100;t=t+1.0)
+			buildMatrixSystem(size, dt, h, D, size/2, 10.0, 0.0, false, true, c);
 	}
 	
 	/**
